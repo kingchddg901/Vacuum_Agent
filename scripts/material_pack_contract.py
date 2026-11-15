@@ -181,6 +181,24 @@ def build_schema(um) -> dict:
             },
             "name": {"type": "string", "description": "Display name. Defaults to id. The only string a user sees."},
             "family": {"type": "string", "description": "Free-text grouping, e.g. stone / wood / glass. Never validated."},
+            "tileable": {
+                "type": "boolean",
+                "description": (
+                    "A CLAIM, and the only way out of the default. Absent (or anything "
+                    "that is not the literal true) means this material is ART: fitted "
+                    "once to each room, overhang clipped, never repeated -- which asks "
+                    "nothing of you, since you cannot know a map's resolution or a "
+                    "room's size and aspect. Setting it true asserts two things: the "
+                    "masks are seamless edge to edge, AND sample_m / scale describe a "
+                    "physical size worth tiling at. NEITHER HALF IS VERIFIED: an "
+                    "automated seam test was built and withdrawn, because no "
+                    "edge-difference statistic separates a feature that legitimately "
+                    "LANDS on the tile boundary from one DUPLICATED across it -- the "
+                    "shipped wood-seam mask is seamless by construction and scores "
+                    "identically to a mask that is not. Check it by tiling your masks "
+                    "2x2 in an editor and looking."
+                ),
+            },
             "scale": {
                 "type": "number", "exclusiveMinimum": 0,
                 "description": "Feature scale. Clamped to 0.02..2 at render (bindings/map.js). <=0 is dropped to null.",
@@ -305,6 +323,7 @@ def contrast(path: str):
 FLAT_PRIMARY_STD = 1.5
 
 
+
 # --- PHYSICAL SAMPLE SIZE ---------------------------------------------------
 # A declared `sample_m` is turned into a raster scale at render by
 #   scale = sample_m / (MASK_CANVAS_PX * metres_per_canvas_pixel)
@@ -380,6 +399,38 @@ def clamping_supersamples(sample_m: float) -> list[tuple[int, float, float]]:
         drawn = kept * MASK_CANVAS_PX * m_per_px
         if abs(drawn - sample_m) / sample_m >= _CLAMP_TOLERANCE:
             out.append((s, scale, drawn))
+    return out
+
+
+def _tileable_warnings(entry: dict, dir_path: str) -> list[str]:
+    """Check the `tileable` CLAIM, and report a size declared on a material that is not
+    making it. A drop-in is art unless it says otherwise, so this is where the two ways
+    of getting that wrong are caught: claiming to tile with a mask that does not, and
+    declaring a physical size that nothing will ever read."""
+    out: list[str] = []
+    raw = _raw_desc(dir_path)
+    declared = "tileable" in raw
+
+    if declared and entry.get("tileable") is not True and raw.get("tileable") is not False:
+        out.append(
+            f"'tileable' was declared as {raw.get('tileable')!r} and did not survive - only "
+            "the JSON literal true counts, so this material is being treated as ART "
+            "(fitted once per room). Strings and numbers are deliberately not coerced: "
+            "a claim that tiles a non-seamless mask puts a visible seam on every floor "
+            "that uses it, so only the unambiguous spelling moves off the safe default."
+        )
+
+    if entry.get("tileable") is not True:
+        for key in ("sample_m", "scale"):
+            if entry.get(key) is not None:
+                out.append(
+                    f"'{key}' is declared ({entry[key]}) but this material is not "
+                    "'tileable: true', so nothing reads it - an art material is fitted to "
+                    "each room and has no tiling rate. Add 'tileable': true if you meant "
+                    "it to tile at that size, or drop the key."
+                )
+        return out
+
     return out
 
 
@@ -489,6 +540,7 @@ def check_pack(dir_path: str, textures_dir: str, quiet: bool = False) -> int:
         warns.append(f"scale {scale} is outside 0.02..2 and WILL be clamped at render "
                      "(bindings/map.js) — the declared value is not what you get.")
     warns.extend(_sample_m_warnings(entry, dir_path))
+    warns.extend(_tileable_warnings(entry, dir_path))
 
     primary = next((l for l in entry["layers"] if l["primary"]), entry["layers"][0])
     chosen = "declared" if any(l["primary"] for l in entry["layers"]) else "defaulted to layer 0"

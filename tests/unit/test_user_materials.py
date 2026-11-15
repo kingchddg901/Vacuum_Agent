@@ -422,3 +422,55 @@ def test_umat_24_declared_number_never_raises_and_never_emits_non_json(tmp_path)
         d[field] = 10 ** 400
         entry = _material(tmp_path, d)        # the assertion is that this RETURNS at all
         assert entry is not None and entry[field] is None
+
+
+def test_umat_25_tileable_is_a_claim_and_only_the_literal_true_makes_it(tmp_path):
+    """[UMAT-25] ``tileable`` is the one optional BOOLEAN, and it is strict where
+    ``declared_number`` is forgiving — deliberately, because the two failure directions
+    are not symmetric.
+
+    A drop-in is ART by default: fitted once to each room, overhang clipped, never
+    repeated. That asks nothing of an author who cannot know a map's resolution or a
+    room's size and aspect. ``tileable: true`` is the opposite claim, and it is NOT
+    verified — an automated seam test was built and withdrawn because no edge statistic
+    separates a feature that legitimately LANDS on the tile boundary from one DUPLICATED
+    across it (the shipped wood-seam mask is seamless by construction and scores the same
+    as a mask that is not). So the only defence is that the claim be unambiguous.
+
+    THE ASYMMETRY, which is the whole reason for the strictness:
+      - falling back to False fits the material to the room. It always renders as
+        SOMETHING, and the author can see they did not get the tiled look they wanted.
+      - wrongly reading True tiles a mask never authored to tile, putting a visible seam
+        on every floor that uses it, at a join nothing downstream can detect.
+    The cheap failure is the default, so only ``true`` moves off it.
+
+    BITE: accept any truthy value and ``"tileable": "false"`` — a string, which is how a
+    YAML-minded author or a stringly-typed generator spells it — tiles a material that
+    explicitly said not to. Accept ``1`` and the same happens from a generator emitting
+    ints for flags. Make absence mean True and every pack authored before this key existed
+    silently starts tiling.
+    """
+    assert um.declared_flag(True) is True
+    for bad in (False, None, 1, 0, "true", "True", "yes", "false", [], {}, 1.0):
+        assert um.declared_flag(bad) is False, f"{bad!r} is not the literal true"
+
+    # ...and it is the rule the descriptor actually runs.
+    d = _descriptor()
+    d["tileable"] = True
+    assert _material(tmp_path, d)["tileable"] is True
+
+    for bad in ("true", 1, "yes", [], {}, None):
+        d = _descriptor()
+        d["tileable"] = bad
+        entry = _material(tmp_path, d)
+        assert entry is not None, f"tileable={bad!r} must COERCE, never refuse the pack"
+        assert entry["tileable"] is False, f"tileable={bad!r} must not make the claim"
+
+    # ABSENCE IS THE DEFAULT, and it is a real boolean on the row rather than a null --
+    # the card reads `row.tileable === true`, and an explicit false says the default was
+    # decided here rather than left to whatever reads it next.
+    d = _descriptor()
+    d.pop("tileable", None)
+    entry = _material(tmp_path, d)
+    assert entry["tileable"] is False
+    assert isinstance(entry["tileable"], bool), "never None -- the default lives in ONE place"

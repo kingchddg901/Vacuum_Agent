@@ -131,6 +131,32 @@ def png_header(data: bytes) -> tuple[int, int, int, int] | None:
     return (width, height, data[24], data[25])
 
 
+def declared_flag(value: Any) -> bool:
+    """A declared boolean CLAIM: only the JSON literal ``true``. ONE rule for every
+    optional boolean a descriptor may carry, as ``declared_number`` is for the numerics.
+
+    THE EXACT INVERSE of that function's first trap, and deliberately. There a ``bool`` is
+    refused, because Python makes ``True`` an ``int`` and it would sail through as a legal
+    scale of 1.0. Here a ``bool`` is the only thing ACCEPTED, because the value is a claim
+    rather than a quantity: there is no sensible number to coerce it toward.
+
+    Absence is an answer, not a gap. A material that says nothing about tiling is not
+    claiming to tile, and that is the default for every drop-in -- it is fitted to each
+    room instead. ``"true"``, ``1`` and ``"yes"`` are therefore all False: an author who
+    meant to make a claim and did not. The contract checker reports that, because it is
+    the only place it can be noticed.
+
+    WHY STRICT RATHER THAN GENEROUS, which is the opposite of how the numerics are handled.
+    The two failure directions are not equal. Falling back to False fits the material to
+    the room, which always renders as SOMETHING -- the author loses the tiled look they
+    wanted and can see that they have. Wrongly reading True tiles a mask that was never
+    authored to tile, and puts a visible seam on every floor that uses it, at a join the
+    renderer has no way to detect. The cheap failure is the default, so only the
+    unambiguous literal moves away from it.
+    """
+    return value is True
+
+
 def declared_number(value: Any, *, allow_zero: bool = False) -> float | None:
     """A DECLARED finite number, else ``None``. ONE rule for every optional numeric a
     descriptor may carry (``scale``, ``sample_m``, ``opacity``, material OR layer level).
@@ -421,6 +447,20 @@ def validate_material(
         "id": material_id,
         "name": str(desc.get("name") or material_id),
         "family": str(desc.get("family") or "") or None,
+        # HOW THIS MATERIAL IS LAID DOWN, and the one place the default is stated.
+        # A drop-in is ART unless it says otherwise: fitted once to each room, overhang
+        # clipped, no repeat -- which is the only arrangement that asks nothing of the
+        # author, since they cannot know the map's resolution, the room's size or its
+        # aspect. `tileable: true` is the opposite claim, and a real one: that the mask
+        # is seamless edge to edge AND that its `sample_m` / `scale` describe a physical
+        # size worth tiling at. Measured 2026-11-14 on the five drop-ins installed here,
+        # FOUR DID NOT TILE -- so absence is not merely the safe default, it is the
+        # accurate description of most packs that exist.
+        # The seam itself is verified by scripts/material_pack_contract.py and NOT here:
+        # this module refuses on 26 bytes of PNG header by design, and decoding seven
+        # 2048x2048 masks per pack at `async_setup` is not a cost it can carry. So this
+        # flag is a claim the authoring tool checks and the integration trusts.
+        "tileable": declared_flag(desc.get("tileable")),
         "scale": declared_number(desc.get("scale")),
         # The material's physical sample size in METRES -- the default for every layer
         # that does not declare its own. See the layer-level note above.

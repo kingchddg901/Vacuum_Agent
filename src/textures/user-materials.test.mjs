@@ -140,3 +140,34 @@ test("[UM-9] an undeclared scale/opacity falls back rather than becoming 0", () 
   // A declared number is untouched -- slate and bamboo were never affected.
   assert.equal(entryFromCatalogRow(row({ opacity: 0.99 })).entry.opacityDefault, 0.99);
 });
+
+// [UM-10] A DROP-IN IS ART UNLESS IT SAYS OTHERWISE, and this is the hop where that
+// survives. `tileable` crosses from Python to the registry as a real boolean -- never a
+// null -- because the DEFAULT IS DECIDED IN ONE PLACE, on the Python side, and this end
+// only carries it. Read truthily and `"false"` tiles; read with `??` and an older
+// catalog.json written before the key existed starts tiling every pack on the box.
+//
+// Measured 2026-11-14 on the five drop-ins installed on the live machine: slate and
+// bamboo tile, the three Material Author exports do not. So absence is not a cautious
+// default, it is the accurate description of most packs that exist -- and the two that
+// do tile say so explicitly rather than being guessed at.
+test("[UM-10] tileable crosses the catalogue hop as a strict boolean", () => {
+  assert.equal(entryFromCatalogRow(row({ tileable: true })).entry.tileable, true,
+    "the claim must reach the registry, which is the only thing the renderer reads");
+  assert.equal(entryFromCatalogRow(row({ tileable: false })).entry.tileable, false);
+
+  // THE OLD-CATALOGUE CASE. A catalog.json written before this key existed has no
+  // `tileable` at all; `undefined` must mean art. `?? false` would also do it, but `??`
+  // is exactly what let `opacity: null` through as 0 in [UM-9] -- so this is pinned.
+  const built = entryFromCatalogRow(row({}));
+  assert.equal("tileable" in built.entry, true, "the key is always present on the entry");
+  assert.equal(built.entry.tileable, false, "an absent key is ART, never tiling");
+
+  // TRUTHY IS NOT THE TEST. Python already refuses anything but the literal true, so
+  // these cannot arrive from build_catalog -- but a hand-edited catalog.json can, and
+  // this end must not widen what that end narrowed.
+  for (const junk of ["true", "false", 1, "yes", [], {}, "0"]) {
+    assert.equal(entryFromCatalogRow(row({ tileable: junk })).entry.tileable, false,
+      `${JSON.stringify(junk)} is not the literal true and must not make the claim`);
+  }
+});

@@ -98,6 +98,40 @@ integration.
 A material is **masks** (greyscale PNGs that say *where*) plus a **descriptor** (JSON that
 says *what colour, how strong, in what order*). Colour never lives in the mask.
 
+## Art or tile?
+
+**Your material is art unless you say otherwise.** With no `tileable` key it is fitted
+once to each room — scaled so it covers the room, the overhang clipped to the room's
+shape, never repeated. Nothing is asked of you that you cannot know: not the map's
+resolution, not the size of anyone's living room, not its aspect.
+
+That is the right default because it is the accurate one. Of the five drop-in packs on
+the development machine, measured 2026-11-14, **two tile and three do not** — and the
+three that do not came from generators, which is exactly where a seamless edge is hardest
+to arrange and easiest to forget.
+
+```json
+{ "schema": 1, "id": "oak-wide", "tileable": true, "sample_m": 1.524, "layers": [ ... ] }
+```
+
+Setting it asserts two things at once: your masks meet themselves edge to edge, **and**
+`sample_m` (or `scale`) describes a size worth repeating at. Both unlock together, because
+neither is meaningful without the other — a size to tile at is no use if the tile shows a
+seam, and a seamless tile still needs to know how big it is.
+
+!!! warning "The claim is not verified — check it yourself"
+    An automated seam test was built and withdrawn. It cannot work: no measurement of the
+    join separates a feature that legitimately **lands on** the tile boundary from one
+    **duplicated across** it. The shipped wood-seam mask is seamless by construction, and
+    it scores identically to a mask that is not. So tile your masks 2×2 in an editor and
+    look at the joins before you set this.
+
+**Only the literal `true` counts.** `"true"`, `1` and `yes` are all read as absent, and
+the pack checker will tell you so. That is deliberate rather than fussy: falling back to
+art always renders as *something* and you can see you did not get the tiling you wanted,
+whereas wrongly tiling a mask that was never authored for it puts a visible seam on every
+floor that uses it, at a join nothing downstream can detect.
+
 ### What a mask actually is
 
 Each mask is a greyscale image where the brightness of a pixel is how much of that
@@ -164,8 +198,9 @@ your editor saved it as RGB it will be refused — export as 8-bit greyscale.
 | `layers` | yes | 1–8 layer objects, bottom to top |
 | `opacity` | no | 0–1, the material's overall card opacity. Defaults to `0.99` |
 | `presets` | no | See [Presets](#presets) |
-| `sample_m` | no | **How many metres of real floor one tile of your masks covers.** A 5 ft board sample is `1.524`. The preferred way to size a material — see [How big is it?](#how-big-is-it) |
-| `scale` | no | Raster feature scale on the map, roughly 0.02–2; smaller is finer. The fallback where no map resolution is known. Defaults to `0.05` |
+| `tileable` | no | **A claim: these masks are seamless and worth repeating.** Absent — the default — means your material is *art* and is fitted once to each room. See [Art or tile?](#art-or-tile) |
+| `sample_m` | no | **How many metres of real floor one tile of your masks covers.** A 5 ft board sample is `1.524`. Only read when `tileable` is true — see [How big is it?](#how-big-is-it) |
+| `scale` | no | Raster feature scale on the map, roughly 0.02–2; smaller is finer. The fallback where no map resolution is known. Only read when `tileable` is true. Defaults to `0.05` |
 | `family` | no | Descriptive metadata only — see [Known gaps](#known-gaps) |
 
 ### Each layer

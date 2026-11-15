@@ -45,6 +45,10 @@
       "type": "string",
       "description": "Free-text grouping, e.g. stone / wood / glass. Never validated."
     },
+    "tileable": {
+      "type": "boolean",
+      "description": "A CLAIM, and the only way out of the default. Absent (or anything that is not the literal true) means this material is ART: fitted once to each room, overhang clipped, never repeated -- which asks nothing of you, since you cannot know a map's resolution or a room's size and aspect. Setting it true asserts two things: the masks are seamless edge to edge, AND sample_m / scale describe a physical size worth tiling at. NEITHER HALF IS VERIFIED: an automated seam test was built and withdrawn, because no edge-difference statistic separates a feature that legitimately LANDS on the tile boundary from one DUPLICATED across it -- the shipped wood-seam mask is seamless by construction and scores identically to a mask that is not. Check it by tiling your masks 2x2 in an editor and looking."
+    },
     "scale": {
       "type": "number",
       "exclusiveMinimum": 0,

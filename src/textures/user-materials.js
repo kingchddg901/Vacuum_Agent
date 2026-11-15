@@ -155,6 +155,22 @@ export function entryFromCatalogRow(row, assetVer) {
       // is why `mapScale` stays and is NOT deprecated — it is the fallback for a map whose
       // resolution is unknown (a hand-drawn or CV backdrop has no device scale at all).
       sampleM: _declared(row.sample_m),
+      // HOW IT IS LAID DOWN. `true` only when the descriptor said so -- build_catalog
+      // writes a real boolean, never null, so there is no "not declared" state to carry
+      // here: absence already became `false` on the Python side and the default lives
+      // there, in one place.
+      //
+      // FALSE IS THE DEFAULT AND IT IS NOT A DEGRADED ONE. A drop-in is art: fitted once
+      // to each room with the overhang clipped, never repeated. That asks nothing of the
+      // author, who cannot know a map's resolution or a room's size and aspect. `true` is
+      // the claim that the masks are seamless edge to edge AND that sampleM/mapScale
+      // describe a physical size worth tiling at -- which is why it is verified by
+      // scripts/material_pack_contract.py rather than asserted here.
+      //
+      // READ IT WITH `=== true`, never truthily: an older catalog.json written before this
+      // key existed has no `tileable` at all, and `undefined` must mean art, which is what
+      // those packs were already getting by being authored before any of this.
+      tileable: row.tileable === true,
       layers,
       masks: layers.map((l) => ({ url: l.url })),
       baseTexture: primary ? primary.url : null,

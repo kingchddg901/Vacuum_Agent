@@ -705,7 +705,10 @@ what the tests are built around:
 
 Both are readable from 26 bytes of PNG `IHDR`, so refusing them needs no decoder and
 no Pillow (which is an optional dependency here — the manifest declares none). That is
-`png_header()`, pinned by `UMAT-20`.
+`png_header()`, pinned by `UMAT-20`. `UMAT-25` pins the one optional BOOLEAN,
+`tileable`, which is strict where `declared_number` is forgiving: only the JSON literal
+`true` makes the claim, because falling back to art always renders as something while
+wrongly tiling a non-seamless mask puts a seam on every floor that uses it.
 
 **The file is the evidence, never the descriptor.** That is `user_fonts.py`'s governing
 sentence applied to masks, and the parametrised cases build a REAL PNG differing in
@@ -728,7 +731,11 @@ it cannot see whatever it is later loosened to admit.
 
 The card half is covered separately and does NOT re-validate — the backend already
 did, against the files, and two validators drifting apart is worse than one:
-`src/textures/user-materials.test.mjs` (`UM-1..8`) for catalogue-row → registry entry,
+`src/textures/user-materials.test.mjs` (`UM-1..10`) for catalogue-row → registry entry,
+including `UM-10`, which pins that a drop-in is ART unless its descriptor claims
+`tileable: true` — the default is decided once, on the Python side, and this hop only
+carries it, so a catalogue written before the key existed must read as art rather than
+start tiling every pack on the box,
 and `src/theme-tokens/user-floors.test.mjs` (`UF-FLOOR-1..7`) for the minted editor
 controls. `UM-5` and `UF-FLOOR-3` both exist for one trap: **no per-material
 `-opacity-card` token may be emitted**, because it sits above the global
