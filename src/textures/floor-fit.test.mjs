@@ -27,12 +27,15 @@
  * [FFIT-7] normalizeFit holds the scale at or above exact cover, so a CONTROL cannot
  *          steer into the state [FFIT-5] defends against -- where the room is part bare
  *          and the pan arrows are dead because slack is legitimately 0.
+ * [FFIT-8] an arrow pressed on a ROTATED map moves the mask the way the screen reads,
+ *          proven by composing with the CSS matrix rather than by restating the table.
  */
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { coverFactor, resolveFit, normalizeFit, MIN_FIT_SCALE, MAX_FIT_SCALE } from "./floor-fit.js";
+import { coverFactor, resolveFit, normalizeFit, screenDeltaToCanvas,
+         MIN_FIT_SCALE, MAX_FIT_SCALE } from "./floor-fit.js";
 
 const MASK = 2048;
 
@@ -181,4 +184,46 @@ test("[FFIT-7] normalizeFit floors the scale at exact cover, and that revives th
   }
   // A non-finite value is dropped, not clamped to a bound -- NaN would survive Math.min.
   assert.deepEqual(normalizeFit({ scale: NaN, tx: "abc" }), {});
+});
+
+test("[FFIT-8] an arrow moves the mask the way the SCREEN reads it, at every map rotation", () => {
+  // The live map is displayed through `.evcc-map-content-rotator`, a CSS rotate(rot) on the
+  // canvas's parent. The pad, the handler and the draw were each correct on their own and
+  // the mask still slid VERTICALLY when "right" was pressed on a quarter-turned map, which
+  // is why this is checked as a ROUND TRIP through the real display transform instead of by
+  // asserting the lookup table back at itself -- a mirrored table would satisfy that.
+
+  /** The CSS the rotator actually applies: content (x,y) -> screen. rotate(90deg) is the
+   *  measured `matrix(0, 1, -1, 0, 0, 0)`, i.e. (x,y) -> (-y, x). */
+  const contentToScreen = (x, y, deg) => {
+    const r = (deg * Math.PI) / 180;
+    const cos = Math.round(Math.cos(r)), sin = Math.round(Math.sin(r)); // quarter turns only
+    return [x * cos - y * sin, x * sin + y * cos];
+  };
+
+  const SCREEN = { "right": [1, 0], "left": [-1, 0], "up": [0, -1], "down": [0, 1] };
+  for (const rot of [0, 90, 180, 270]) {
+    for (const [name, [sx, sy]] of Object.entries(SCREEN)) {
+      const [cx, cy] = screenDeltaToCanvas(sx, sy, rot);
+      const [bx, by] = contentToScreen(cx, cy, rot);
+      assert.deepEqual([bx, by], [sx, sy],
+        `at ${rot}deg, "${name}" must still travel ${name} on screen; ` +
+        `canvas delta (${cx}, ${cy}) displays as (${bx}, ${by})`);
+    }
+  }
+
+  // ABLATION: the identity table must NOT satisfy the round trip at a quarter turn, or this
+  // test would have passed on the shipped bug.
+  const identity = (dx, dy) => [dx, dy];
+  const [ix, iy] = contentToScreen(...identity(1, 0), 90);
+  assert.notDeepEqual([ix, iy], [1, 0],
+    "if the un-rotated delta already displays as 'right' at 90deg this test cannot fail");
+
+  // Rotation is normalised, not trusted: the accessor can hand back 360, a negative, or a
+  // float, and an unmatched switch value would silently fall through to the identity --
+  // which is precisely the shipped bug, reintroduced quietly.
+  assert.deepEqual(screenDeltaToCanvas(1, 0, 360), [1, 0]);
+  assert.deepEqual(screenDeltaToCanvas(1, 0, -90), screenDeltaToCanvas(1, 0, 270));
+  assert.deepEqual(screenDeltaToCanvas(1, 0, 90.4), screenDeltaToCanvas(1, 0, 90));
+  assert.deepEqual(screenDeltaToCanvas(1, 0, null), [1, 0], "absent rotation is identity");
 });

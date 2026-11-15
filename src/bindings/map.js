@@ -13,7 +13,7 @@
 import { VIEWS } from "../render-cycle.js";
 import { roomFillRgb, roomOverrideRgb, ROOM_FILL_N } from "../cards/map-room-color.js";
 import { FLOOR_TEXTURE_REGISTRY, getPrimaryTextureUrl, tilesAcrossFloor } from "../textures/floor-texture-registry.js";
-import { resolveFit, normalizeFit } from "../textures/floor-fit.js";
+import { resolveFit, normalizeFit, screenDeltaToCanvas } from "../textures/floor-fit.js";
 import { resolveFloorType, normalizeFloorRotationDeg } from "../textures/floor-texture-resolver.js";
 import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 
@@ -1926,9 +1926,19 @@ export function applyMapBindings(proto) {
         // carry the previous step silently.
         const pan = (this.card._state.floorFitStep?.() ?? 3) * 0.02;
         const cur = liveFitFor(roomId);
+        // THE ARROW IS LABELLED IN THE FRAME THE USER READS. The map is displayed through
+        // a CSS rotate on .evcc-map-content-rotator, so at a quarter turn the canvas's +x
+        // runs DOWN the screen and "right" slid the mask vertically -- with the pad, this
+        // handler and the draw all individually correct. Convert here, at the one place a
+        // screen gesture becomes a canvas delta.
+        const [dx, dy] = screenDeltaToCanvas(
+          Number(btn.dataset.dx) || 0,
+          Number(btn.dataset.dy) || 0,
+          this.card._state.effectiveMapRotation?.() ?? 0,
+        );
         this.card._state.setFloorFitDraft?.(roomId, {
-          tx: (Number(cur.tx) || 0) + (Number(btn.dataset.dx) || 0) * pan,
-          ty: (Number(cur.ty) || 0) + (Number(btn.dataset.dy) || 0) * pan,
+          tx: (Number(cur.tx) || 0) + dx * pan,
+          ty: (Number(cur.ty) || 0) + dy * pan,
         }, savedFitFor(roomId));
         scheduleFitSave(roomId);
         this.card._scheduleRender();

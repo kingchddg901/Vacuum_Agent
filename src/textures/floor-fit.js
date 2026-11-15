@@ -91,6 +91,40 @@ export function normalizeFit(fit) {
   return out;
 }
 
+/**
+ * Turn an arrow's SCREEN direction into the CANVAS direction that moves the mask that way.
+ *
+ * The live map is displayed through `.evcc-map-content-rotator`, a CSS `rotate(rot)` on the
+ * canvas's parent (renderers/map.js) -- so the canvas's own +x is not the screen's +x. At a
+ * quarter turn the mask therefore slides VERTICALLY when "right" is pressed, with every
+ * layer underneath behaving correctly: the pad is `right = (1,0)`, the handler does
+ * `tx += dx`, and the draw translates +x. Nothing is swapped anywhere; the display is
+ * rotated and the arrows were labelled in the frame the user reads, not the one they act in.
+ *
+ * This is the SAME defect `unrotatePct` exists for one module over ("a 90/270 drag was
+ * previously off by the rotation") -- that one moves a POINT in a 0-100 pct box, this moves
+ * a DIRECTION, so the 100-x reflections do not apply and it gets its own function rather
+ * than a reinterpreted call to that one.
+ *
+ * The rotator turns in 90-degree steps only, so this is exact and is a table, not
+ * trigonometry. Content->screen is `rotate(+rot)`, i.e. (x,y) -> (-y, x) at 90; this is its
+ * inverse. Identity at 0, which is every unrotated map.
+ *
+ * NOTE what is deliberately NOT undone here: the room's own `floor_rotation`. The draw
+ * rotates into the mask's frame BEFORE panning, so a pan runs along the material's own
+ * axes -- planks slide lengthwise rather than diagonally. That is a design choice, not an
+ * oversight, and undoing it here would silently reverse it.
+ */
+export function screenDeltaToCanvas(dx, dy, rotDeg) {
+  const rot = ((Math.round(Number(rotDeg) || 0) % 360) + 360) % 360;
+  switch (rot) {
+    case 90:  return [dy, -dx];
+    case 180: return [-dx, -dy];
+    case 270: return [-dy, dx];
+    default:  return [dx, dy];
+  }
+}
+
 export function coverFactor(w, h, sw, sh, rad = 0) {
   if (!(sw > 0 && sh > 0)) return 0;
   const ac = Math.abs(Math.cos(rad)), as = Math.abs(Math.sin(rad));
