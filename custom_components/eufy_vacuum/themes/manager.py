@@ -727,9 +727,29 @@ class ThemeManager:
         import's keys for that namespace. Clear-then-apply (not patch) makes the
         result deterministic regardless of the target's prior state — no stale
         override can survive (the same leftover-token bleed that hit the floor
-        registry). Values arrive already range-clamped by the card. Matching
-        working-draft overrides are cleared too, so the entry's new namespace is
-        what renders.
+        registry). Matching working-draft overrides are cleared too, so the
+        entry's new namespace is what renders.
+
+        THE CALLER MUST SEND THE WHOLE NAMESPACE. Clearing happens before
+        applying, so a key the caller omits is DELETED and the result is still
+        ``{"ok": True}`` -- nothing here can tell a deliberate removal from a
+        payload assembled against an incomplete read. ``[TIS-1]`` pins that
+        mechanism as the feature it is (a stale override cannot survive), and this
+        is the same mechanism read the other way: the adjective "stale" is the
+        caller's judgement, not something this method can verify.
+
+        The known way to get it wrong is to build the payload from
+        ``.storage/eufy_vacuum.storage`` instead of from ``get_theme_library``.
+        Theme writes are DEBOUNCED, so the file lags the live library, and a
+        payload built from it silently drops every key written since the last
+        flush. Measured 2026-11-14: the file held 6 keys in a namespace whose live
+        library held 9.
+
+        Stated rather than enforced, deliberately: only the caller knows which keys
+        constitute a complete namespace, so refusing a short payload would mean
+        guessing at the boundary this method exists to be told. Values arrive
+        already range-clamped by the card -- which is an obligation on the VALUES,
+        and is not the completeness obligation above.
 
         Type names are used only as opaque key prefixes here (--evcc-floor-
         {name}-); the card validates them against the registry before sending,

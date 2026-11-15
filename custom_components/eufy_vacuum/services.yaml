@@ -2600,8 +2600,12 @@ import_theme:
       description: >
         Optional target vacuum for a scoped import: replaces only the
         floor-type namespaces named in payload's scope on that vacuum's
-        active theme. Leave blank for a full import, which adds a new
-        library theme instead.
+        active theme. A scoped import REPLACES, so the payload must carry
+        every key of each named namespace: an omitted key is removed, and
+        the call still reports success. Read the current keys with
+        get_theme_library rather than from the storage file, which lags
+        behind the live library. Leave blank for a full import, which adds
+        a new library theme instead.
       required: false
       selector:
         entity:
