@@ -394,33 +394,6 @@ export const setupStyles = `
     padding-inline-start: 36px;
   }
 
-  /* The label that opens a chip row, and the live value beside the placement
-     controls. Both are TEXT in a row of buttons, so they take the chip's vertical
-     rhythm without its border or background -- a bordered label reads as a chip you
-     can press, and the readout especially must not, since it is the one thing in
-     that row that is output rather than input. */
-  .evcc-setup-floor-chip-label,
-  .evcc-setup-floor-readout {
-    padding:     4px 2px;
-    font-size:   0.76rem;
-    line-height: 1.2;
-    white-space: nowrap;
-    align-self:  center;
-    color:       var(--evcc-text-secondary, rgba(240, 242, 245, 0.72));
-  }
-
-  .evcc-setup-floor-chip-label {
-    font-weight: 600;
-  }
-
-  /* Tabular figures so a nudge changes the DIGIT and not the column width -- the
-     whole row shifting on every press is exactly the noise a readout is meant to
-     replace. */
-  .evcc-setup-floor-readout {
-    font-variant-numeric: tabular-nums;
-    color: var(--evcc-text-muted, rgba(240, 242, 245, 0.55));
-  }
-
   .evcc-setup-floor-chip {
     padding:       4px 10px;
     border-radius: 20px;

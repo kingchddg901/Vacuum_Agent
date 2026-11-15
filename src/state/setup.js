@@ -82,16 +82,6 @@ export function applySetupState(proto) {
         // untouched room is absent from this map entirely, which is what tells
         // the backend to leave its angle alone.
         floorRotations:   {},     // String(room_id) → degrees
-        // WHERE A FITTED MATERIAL SITS: {tx, ty, scale}. Only a drop-in that makes no
-        // `tileable` claim is fitted; a tiled one shares a map-space grid and has
-        // nothing to place. An EMPTY object is a real value here -- back to centred,
-        // exact cover -- and an untouched room is absent from this map entirely, which
-        // is what tells the backend to leave its placement alone.
-        floorFits:        {},     // String(room_id) → {tx, ty, scale}
-        // Nudge step, shared by every placement control in this editor. Deliberately
-        // NOT the composer's `composeStep`, which is named for its own surface: sharing
-        // it would make changing the precision here silently change it there.
-        floorFitStep:     3,      // 1 fine | 3 med | 7 coarse, as the composer's does
         saving:           false,
         configuredMapIds: {},     // String(map_id) → true
       };
@@ -160,52 +150,6 @@ export function applySetupState(proto) {
     const n = Number(degrees);
     this._ensureSetupRoomEditor().floorRotations[String(roomId)] =
       Number.isFinite(n) ? n : 0;
-  };
-
-  /* A PLACEMENT IS MERGED, NOT REPLACED. Each control moves one axis and the others
-     must survive it, so a pan after a zoom does not silently reset the zoom. Values are
-     clamped to the renderable range HERE as well as in the backend, so a draft can
-     never hold a value the save would refuse to keep.
-
-     THIS DRAFT IS NOT RENDERED, and an earlier version of this comment claimed it was.
-     It cannot be: the setup room editor is a LIST, with no map beside it. The live
-     control is on the map and reads the separate draft in state/map.js. These controls
-     earn their place by batching several rooms before one save, and they show their
-     values so they are not silent -- but nothing here moves a floor until it is saved.
-
-     tx/ty are fractions of the slack that exists, so +/-1 is the room's own edge and
-     anything past it is the same picture; scale multiplies the cover, 1 being exact. */
-  proto.setSetupRoomFloorFit = function (roomId, patch) {
-    const key = String(roomId);
-    const editor = this._ensureSetupRoomEditor();
-    const cur = editor.floorFits[key] || {};
-    const next = { ...cur };
-    const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
-    for (const [k, lo, hi] of [["tx", -1, 1], ["ty", -1, 1], ["scale", 0.25, 4]]) {
-      if (!(patch && k in patch)) continue;
-      const n = Number(patch[k]);
-      if (Number.isFinite(n)) next[k] = clamp(n, lo, hi);
-    }
-    editor.floorFits[key] = next;
-  };
-
-  /* Back to centred, exact cover. An EMPTY object, not a delete: absent would mean
-     "leave whatever is stored alone", which is the opposite of what a reset asks for. */
-  proto.resetSetupRoomFloorFit = function (roomId) {
-    this._ensureSetupRoomEditor().floorFits[String(roomId)] = {};
-  };
-
-  proto.setupRoomFloorFit = function (roomId) {
-    return this._ensureSetupRoomEditor().floorFits[String(roomId)] || null;
-  };
-
-  proto.setupRoomEditorFloorFitStep = function () {
-    return this._ensureSetupRoomEditor().floorFitStep;
-  };
-
-  proto.setSetupRoomEditorFloorFitStep = function (n) {
-    const v = Number(n);
-    this._ensureSetupRoomEditor().floorFitStep = Number.isFinite(v) && v > 0 ? v : 3;
   };
 
   proto.setSetupRoomEditorSaving = function (saving) {
@@ -369,11 +313,4 @@ export function applySetupState(proto) {
     return { ...this._ensureSetupRoomEditor().floorRotations };
   };
 
-  proto.setupRoomEditorFloorFitsMap = function () {
-    const out = {};
-    for (const [k, v] of Object.entries(this._ensureSetupRoomEditor().floorFits)) {
-      out[k] = { ...v };
-    }
-    return out;
-  };
 }

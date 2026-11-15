@@ -1799,7 +1799,11 @@ export function applyMapRenderers(proto) {
           <button class="evcc-map-config-btn" data-action="floor-fit-reset"
             data-room-id="${roomId}" ${busy ? "disabled" : ""}>${this.t("setup.floor_fit_reset")}</button>
         </div>
-        <div class="evcc-map-config-adj-meta">x ${num(fit.tx)} · y ${num(fit.ty)} · ${(Number(fit.scale) || 1).toFixed(2)}×</div>
+        <div class="evcc-map-config-adj-meta">${this.escapeHtml(
+          this.t("setup.floor_fit_readout", {
+            x: num(fit.tx), y: num(fit.ty),
+            scale: (Number(fit.scale) || 1).toFixed(2),
+          }))}</div>
         ${dirty ? `
         <div class="evcc-compose-tools">
           <button class="evcc-map-config-btn evcc-map-config-btn--primary${busy ? " evcc-map-config-btn--busy" : ""}"

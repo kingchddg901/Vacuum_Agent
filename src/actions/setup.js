@@ -172,7 +172,6 @@ export function applySetupActions(proto) {
     floorTypes,
     floorMaterials,
     floorRotations,
-    floorFits,
   ) {
     const result = await this.callService(
       DOMAIN,
@@ -192,13 +191,6 @@ export function applySetupActions(proto) {
         // map and no key at all must stay indistinguishable.
         ...(floorRotations && Object.keys(floorRotations).length
           ? { floor_rotations: floorRotations }
-          : {}),
-        // Same rule a third time: an ABSENT room keeps its placement. Note the inner
-        // value has the OPPOSITE sense -- an explicit `{}` for a room means "back to
-        // centred, exact cover", which is a real instruction and must be sent. Only the
-        // OUTER map being empty means "nothing to say".
-        ...(floorFits && Object.keys(floorFits).length
-          ? { floor_fits: floorFits }
           : {}),
       },
       true,

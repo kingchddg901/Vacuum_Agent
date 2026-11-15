@@ -31,7 +31,6 @@ import { resolveCodedLabel } from "../state/coded-label.js";
 import { entityDisplayName } from "../state/entity-display-name.js";
 
 import { currentUserMaterials } from "../textures/user-materials.js";
-import { FLOOR_TEXTURE_REGISTRY, tilesAcrossFloor } from "../textures/floor-texture-registry.js";
 
 const FLOOR_TYPE_OPTIONS = [
   { value: "hardwood",         label: "Hardwood"         },
@@ -125,8 +124,6 @@ export function applySetupRenderers(proto) {
     const floorTypesMap = state.setupRoomEditorFloorTypesMap?.() ?? {};
     const floorMaterialsMap = state.setupRoomEditorFloorMaterialsMap?.() ?? {};
     const floorRotationsMap = state.setupRoomEditorFloorRotationsMap?.() ?? {};
-    const floorFitsMap     = state.setupRoomEditorFloorFitsMap?.() ?? {};
-    const fitStep          = state.setupRoomEditorFloorFitStep?.() ?? 3;
     // Drop-in materials only. With none installed this is empty and the second
     // chip row is not rendered AT ALL -- not an empty row, no markup -- so an
     // install without drop-ins produces byte-identical output to before.
@@ -666,70 +663,6 @@ export function applySetupRenderers(proto) {
                 </div>`
               : "";
 
-            /* PLACEMENT -- only for a material that is actually FITTED. A tiled one
-               shares a map-space grid anchored at (0,0) and has nothing to place, so the
-               control would be present and do nothing, which is worse than its absence:
-               a dial that moves and changes nothing reads as a broken render.
-
-               The step is 1/3/7 like the segment composer's, but the UNIT here is a
-               fraction of the slack that exists rather than pixels -- so Fine/Med/Coarse
-               are 0.02/0.06/0.14, the same 1:3:7 expressed in the unit this surface has.
-               A pan of +/-1 is the room's own edge, so every button press lands somewhere
-               that still covers the room and there is no end-stop to explain. */
-            const fitEntry = chosenMaterial ? FLOOR_TEXTURE_REGISTRY[chosenMaterial] : null;
-            const isFitted = Boolean(chosenMaterial) && !tilesAcrossFloor(fitEntry);
-            const fit = floorFitsMap[roomId] ?? room.floor_fit ?? {};
-            const PAN = fitStep * 0.02;
-            const nudged = (dx, dy) => JSON.stringify({
-              tx: Math.min(Math.max((Number(fit.tx) || 0) + dx * PAN, -1), 1),
-              ty: Math.min(Math.max((Number(fit.ty) || 0) + dy * PAN, -1), 1),
-            });
-            const zoomed = (mult) => JSON.stringify({
-              scale: Math.min(Math.max((Number(fit.scale) || 1) * mult, 0.25), 4),
-            });
-            const fitBtn = (patch, label, title) => `
-              <button class="evcc-setup-floor-chip"
-                      data-action="setup-nudge-floor-fit"
-                      data-room-id="${roomId}"
-                      data-fit-patch="${this.escapeHtml(patch)}"
-                      title="${this.escapeHtml(title)}"
-                      ${saving ? "disabled" : ""}>${this.escapeHtml(label)}</button>`;
-            const stepBtn = (n, label) => `
-              <button class="evcc-setup-floor-chip ${fitStep === n ? "active" : ""}"
-                      data-action="setup-set-floor-fit-step"
-                      data-fit-step="${n}"
-                      ${saving ? "disabled" : ""}>${this.escapeHtml(label)}</button>`;
-            // THE READOUT IS WHY THIS ROW IS NOT SILENT. There is no map on this tab,
-            // so a press changes nothing you can see -- that was the whole defect. It
-            // cannot show you the floor, but it can show you WHERE you are, and that it
-            // moved. The live control is on the map; this row batches several rooms
-            // before one save, and the numbers are what make it usable for that.
-            const placed = Number(fit.tx) || Number(fit.ty) || (Number(fit.scale) || 1) !== 1;
-            const fitHtml = isFitted
-              ? `<div class="evcc-setup-floor-chips" data-fit-row="${roomId}">
-                  <span class="evcc-setup-floor-chip-label">${this.escapeHtml(this.t("setup.floor_fit"))}</span>
-                  ${fitBtn(nudged(0, -1), "↑", this.t("map.nudge_up"))}
-                  ${fitBtn(nudged(0, 1), "↓", this.t("map.nudge_down"))}
-                  ${fitBtn(nudged(-1, 0), "←", this.t("map.nudge_left"))}
-                  ${fitBtn(nudged(1, 0), "→", this.t("map.nudge_right"))}
-                  ${fitBtn(zoomed(1.1), "+", this.t("setup.floor_fit_zoom_in"))}
-                  ${fitBtn(zoomed(1 / 1.1), "−", this.t("setup.floor_fit_zoom_out"))}
-                  ${stepBtn(1, this.t("map.compose_step_fine"))}
-                  ${stepBtn(3, this.t("map.compose_step_med"))}
-                  ${stepBtn(7, this.t("map.compose_step_coarse"))}
-                  ${placed ? `<button class="evcc-setup-floor-chip"
-                              data-action="setup-reset-floor-fit"
-                              data-room-id="${roomId}"
-                              ${saving ? "disabled" : ""}>${this.escapeHtml(this.t("setup.floor_fit_reset"))}</button>` : ""}
-                  <span class="evcc-setup-floor-readout">${this.escapeHtml(
-                    this.t("setup.floor_fit_readout", {
-                      x: (Number(fit.tx) || 0).toFixed(2),
-                      y: (Number(fit.ty) || 0).toFixed(2),
-                      scale: (Number(fit.scale) || 1).toFixed(2),
-                    }))}</span>
-                </div>`
-              : "";
-
             return `
               <div class="evcc-setup-room-row ${enabled ? "" : "excluded"}">
                 <div class="evcc-setup-room-row-top">
@@ -745,7 +678,6 @@ export function applySetupRenderers(proto) {
                 ${enabled ? `<div class="evcc-setup-floor-chips">${chipsHtml}</div>` : ""}
                 ${enabled ? materialChipsHtml : ""}
                 ${enabled ? rotationChipsHtml : ""}
-                ${enabled ? fitHtml : ""}
               </div>
             `;
           }).join("");
