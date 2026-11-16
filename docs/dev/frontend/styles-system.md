@@ -18,7 +18,7 @@ One CSS string, built once at module-eval time, injected into the shadow root.
 **Convention.** Each feature owns one module: `src/styles/<feature>.js` exports a `<feature>Styles` CSS template-string constant. The combiner imports each and pushes it into the `STYLES` array.
 
 - Imports: `src/styles/index.js:22-48`.
-- Array + join: `src/styles/index.js:50-82` — `STYLES = [ … ].join("\n")` (`styles/index.js:82`).
+- Array + join: `styles/index.js::STYLES` — `STYLES = [ … ].join("\n")` (`styles/index.js::STYLES`).
 
 **Order matters — three load-bearing positions:**
 - **`fontStyles` is FIRST** (`styles/index.js:54`, comment `:51-53`). The `@font-face` declarations must be parsed before anything reads `--evcc-font-family`, and the `[data-evcc-font]` override rule needs to sit ahead of anything it must outrank. See §4 (the typeface chain).
@@ -76,9 +76,9 @@ Per-render, resolved theme values are written as inline `--evcc-*` custom proper
 
 **When it runs:** the first effectful call in `_render()` (`main.js::_render`); once post-library-load (`main.js::_loadInitialThemeState`); plus 15 event-driven callsites in `bindings/theme.js` (e.g. preset, mode `bindings/theme.js#CNW1D5GX`, token, color `bindings/theme.js#CNFQSNRH`, alpha, colormix, backend refresh `bindings/theme.js::_refreshThemeFromBackend`) for immediate editor feedback without waiting for a full render.
 
-**The actual writer — `applyDynamicTheme(card, resolvedTheme)`** (`styles/index.js::applyDynamicTheme`):
+**The actual writer — `applyDynamicTheme(card, resolvedTheme)`** (`styles/apply-tokens.js::applyDynamicTheme`):
 - Iterates `THEME_TOKEN_REGISTRY` and **removes** any prop absent/null/empty in `tokens` (`styles/apply-tokens.js#CN344YSE`) — so a cleared draft value falls back to the foundation default instead of leaving a stale inline value.
-- Then `host.style.setProperty(property, asComponents ?? value)` for every present token (`styles/index.js::applyDynamicTheme`) — `--evcc-animal-*` tokens branch through `styles/index.js::animalHslComponents` first, because they are consumed as bare `hsl()` components.
+- Then `host.style.setProperty(property, asComponents ?? value)` for every present token (`styles/apply-tokens.js::applyDynamicTheme`) — `--evcc-animal-*` tokens branch through `styles/apply-tokens.js::animalHslComponents` first, because they are consumed as bare `hsl()` components.
 
 **Trust boundary:** apply-theme does NOT resolve the cascade — it just writes an already-merged `tokens` map. The default→theme→override layering resolves upstream in `resolvedTheme()` (§3.3).
 
@@ -88,7 +88,7 @@ A flat array of descriptor entries `{ key, label, group, type, min?, max?, step?
 
 Token definitions come from group-bound factories in `theme-tokens/helpers.js`: `makeTypedGroupToken(group, defaultType)` (`:173`) wrapping `makeGroupedToken` (`:126`). Examples: `mapToken.color` (`helpers.js:176, :208`), `roomToken.number` (rangeless on purpose, `:180, :207`), `roomToken.size` (`:179`); range sugar `.unit/.blur/.angle/.signed` (`:191-194`) over `SCALAR_RANGES` (`:81-91`). `min/max/step` are **editor-only, never persisted** (`theme-tokens/helpers.js::makeGroupedToken`).
 
-**Trust boundary:** the registry is the **key inventory + type/label/range** — it does NOT carry a `default` field. `applyDynamicTheme` iterates it only for the remove-pass (`THEME_TOKEN_REGISTRY` imported at `styles/index.js::applyDynamicTheme`, used `styles/index.js::applyDynamicTheme`). Defaults live in CSS/JS (§3.3). The registry also feeds the editor (`THEME_GROUP_MAP`/`THEME_GROUPS`, out of scope — see [theme-system.md](theme-system.md)).
+**Trust boundary:** the registry is the **key inventory + type/label/range** — it does NOT carry a `default` field. `applyDynamicTheme` iterates it only for the remove-pass (`THEME_TOKEN_REGISTRY` imported at `styles/apply-tokens.js::applyDynamicTheme`, used `styles/apply-tokens.js::applyDynamicTheme`). Defaults live in CSS/JS (§3.3). The registry also feeds the editor (`THEME_GROUP_MAP`/`THEME_GROUPS`, out of scope — see [theme-system.md](theme-system.md)).
 
 ### 3.3 Where each default actually lives
 
@@ -111,7 +111,7 @@ There is **no single default source.** When `applyDynamicTheme` removes/never-se
 - **3. combine** — `flattenThemeBuckets()` folds `colorMap`+`alphaMap` into 8-char hex via `hexWithAlpha()` (`theme-tokens/flatten.js`, called at `state/theme.js#CNGE76CN`).
 - Returns `{tokens, sources}` (`state/theme.js#CNWWDBRT`); `sources` (default|theme|draft) drives editor provenance only. The foundation `:host` default (A) is NOT in `tokens` — it is the implicit floor CSS applies whenever `resolvedTheme` omits a key.
 
-**One-line bridge:** `_render()` → `applyThemeToCard(this)` (`main.js::_render`) → `resolvedTheme()` merges default(seed)→theme→draft into `{tokens}` (`state/theme.js::resolvedTheme`) → `applyDynamicTheme` writes/removes inline `--evcc-*` on card + modal host (`styles/index.js::applyDynamicTheme`) → CSS resolves anything unset via `:host` (A), modal-derived (B), or `var(…,defaultHex)` (C).
+**One-line bridge:** `_render()` → `applyThemeToCard(this)` (`main.js::_render`) → `resolvedTheme()` merges default(seed)→theme→draft into `{tokens}` (`state/theme.js::resolvedTheme`) → `applyDynamicTheme` writes/removes inline `--evcc-*` on card + modal host (`styles/apply-tokens.js::applyDynamicTheme`) → CSS resolves anything unset via `:host` (A), modal-derived (B), or `var(…,defaultHex)` (C).
 
 ---
 
@@ -251,7 +251,7 @@ live:FONT-1 instrument class). Pins: `UF-1`…`UF-6` (frontend), `tests/unit/tes
 
 ## 6. Cliffs
 
-**Cliff 1 — new modal CSS must go in the BODY host, not the shadow bundle.** Add a modal's CSS to any shadow-bundled module (the `STYLES` array, `styles/index.js:50-82`) and the body-portal modal renders **completely unstyled** — no error, just naked markup on `document.body`. The live modal stylesheet is `MODAL_HOST_STYLES` (`styles/modal-host.js::MODAL_HOST_STYLES`), injected at `main.js::_updateModalHost`. **Trap:** `styles/modals.js:3` is verbatim `⚠️ DEPRECATED — DO NOT EDIT` ("its rules never match anything… edit `MODAL_HOST_STYLES` in `src/styles/index.js`, not this one"), yet it is still in the array (`styles/index.js:69`) — it looks authoritative but is inert (slated for deletion v0.10.0+). (Its banner's own `_renderModals()` reference is itself stale — the live method is `_updateModalHost()`.) Correct add = both places (§2). **Token gotcha:** miss the light companion (`styles/modal-host.js#CNR1K8KC`, inside the `styles/modal-host.js#CN0M3MW9` media block) and a themeless light-OS Follow-HA user gets a dark modal. **A live example of the inverse mistake** — shadow-root CSS stranded in a body-host-only module, so it never reaches the shadow root at all — is `jobSummaryStyles`; see §2's note.
+**Cliff 1 — new modal CSS must go in the BODY host, not the shadow bundle.** Add a modal's CSS to any shadow-bundled module (the `STYLES` array, `styles/index.js::STYLES`) and the body-portal modal renders **completely unstyled** — no error, just naked markup on `document.body`. The live modal stylesheet is `MODAL_HOST_STYLES` (`styles/modal-host.js::MODAL_HOST_STYLES`), injected at `main.js::_updateModalHost`. **Trap:** `styles/modals.js:3` is verbatim `⚠️ DEPRECATED — DO NOT EDIT` ("its rules never match anything… edit `MODAL_HOST_STYLES` in `src/styles/index.js`, not this one"), yet it is still in the array (`styles/index.js:69`) — it looks authoritative but is inert (slated for deletion v0.10.0+). (Its banner's own `_renderModals()` reference is itself stale — the live method is `_updateModalHost()`.) Correct add = both places (§2). **Token gotcha:** miss the light companion (`styles/modal-host.js#CNR1K8KC`, inside the `styles/modal-host.js#CN0M3MW9` media block) and a themeless light-OS Follow-HA user gets a dark modal. **A live example of the inverse mistake** — shadow-root CSS stranded in a body-host-only module, so it never reaches the shadow root at all — is `jobSummaryStyles`; see §2's note.
 
 **Cliff 2 — the three-bundle boundary: `styles/` reaches ONLY the command-center.** `scripts/build-card.mjs#CNG797ZX` builds three self-contained esbuild bundles, no code-splitting — entry points `src/all-cards.js` → `eufy-vacuum-command-center.js`, `src/cards-standalone.js` → the room/dashboard cards, `src/cards/vacuum-map-host.js` → the map host. `main.js#CNG921VV` is the **only** importer of `STYLES`/`MODAL_HOST_STYLES`, and it is reachable only from the command-center entry. The standalone cards carry their OWN inline CSS and do NOT import `src/styles/` (though `check-styles.mjs`'s theme-lint/RTL-lint/token-lint checks do reach some of them — see §5's gate blind-spot note):
 - `cards/dashboard-card.js:989` `const CARD_CSS` with its own `:host`; header `:986` says verbatim "own shadow root — sibling cards carry their own CSS".
