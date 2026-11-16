@@ -1355,6 +1355,8 @@
     "list_view": "Listenansicht",
     "locate": "Orten",
     "map_view": "Kartenansicht",
+    "mascot_bar_hide": "Begleiter-Steuerung ausblenden",
+    "mascot_bar_show": "Begleiter-Steuerung einblenden",
     "mascot_follow_off": "Lass das Maskottchen der Live-Roboterposition folgen (ersetzt den Punkt)",
     "mascot_follow_on": "Maskottchen folgt der Live-Roboterposition — tippen für Raum-/Stationsmodus",
     "mascot_follows_robot": "Maskottchen folgt dem Roboter",

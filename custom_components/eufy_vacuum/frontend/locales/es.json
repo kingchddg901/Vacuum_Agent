@@ -1367,6 +1367,8 @@
     "list_view": "Vista de lista",
     "locate": "Localizar",
     "map_view": "Vista de mapa",
+    "mascot_bar_hide": "Ocultar controles del compañero",
+    "mascot_bar_show": "Mostrar controles del compañero",
     "mascot_follow_off": "Haz que la mascota siga la posición en vivo del robot (sustituye al punto)",
     "mascot_follow_on": "La mascota sigue la posición en vivo del robot; toca para el modo habitación/base",
     "mascot_follows_robot": "La mascota sigue al robot",

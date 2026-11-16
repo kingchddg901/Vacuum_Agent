@@ -1852,6 +1852,13 @@ export const mapStyles = `
      the spacing it had before the group existed (the panel toggle bar at
      4px, 6px under the mobile shell; .map-mascot-bar at 6px). Restating a
      literal here would silently re-space one of them. */
+  /* ISSUE #82 — collapsed companion row. Everything in the group hides EXCEPT the caret
+     that collapses it; excluded by data-action so the user is never stranded without a
+     control to expand it again. */
+  .evcc-mascot-group--collapsed > :not([data-action="toggle-mascot-bar"]) {
+    display: none;
+  }
+
   .evcc-mascot-group {
     display:     flex;
     align-items: center;

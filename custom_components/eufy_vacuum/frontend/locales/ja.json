@@ -1588,6 +1588,8 @@
     "list_view": "リスト表示",
     "locate": "位置確認",
     "map_view": "マップ表示",
+    "mascot_bar_hide": "コンパニオンの操作を非表示",
+    "mascot_bar_show": "コンパニオンの操作を表示",
     "mascot_follow_off": "マスコットをロボットの現在位置に追従させます（ドットの代わりに表示）",
     "mascot_follow_on": "マスコットがロボットの現在位置に追従中 — タップで部屋/ドックモード",
     "mascot_follows_robot": "マスコットがロボットに追従",

@@ -1577,6 +1577,8 @@
     "list_view": "Zobrazení seznamu",
     "locate": "Najít",
     "map_view": "Zobrazení mapy",
+    "mascot_bar_hide": "Skrýt ovládání společníka",
+    "mascot_bar_show": "Zobrazit ovládání společníka",
     "mascot_follow_off": "Nechte maskota jezdit na živé pozici robota (nahradí tečku)",
     "mascot_follow_on": "Maskot sleduje živou pozici robota — klepnutím přepnete do režimu místnost/dok",
     "mascot_follows_robot": "Maskot sleduje robota",

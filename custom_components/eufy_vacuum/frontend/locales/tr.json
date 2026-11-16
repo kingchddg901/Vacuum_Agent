@@ -1577,6 +1577,8 @@
     "list_view": "Liste görünümü",
     "locate": "Bul",
     "map_view": "Harita görünümü",
+    "mascot_bar_hide": "Eşlik eden kontrollerini gizle",
+    "mascot_bar_show": "Eşlik eden kontrollerini göster",
     "mascot_follow_off": "Maskotu canlı robot konumuna bindir (noktanın yerini alır)",
     "mascot_follow_on": "Maskot canlı robot konumunu takip ediyor — oda/istasyon modu için dokunun",
     "mascot_follows_robot": "Maskot robotu takip eder",

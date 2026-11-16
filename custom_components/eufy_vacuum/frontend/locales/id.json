@@ -1577,6 +1577,8 @@
     "list_view": "Tampilan daftar",
     "locate": "Temukan",
     "map_view": "Tampilan peta",
+    "mascot_bar_hide": "Sembunyikan kontrol pendamping",
+    "mascot_bar_show": "Tampilkan kontrol pendamping",
     "mascot_follow_off": "Buat maskot mengikuti posisi robot langsung (menggantikan titik)",
     "mascot_follow_on": "Maskot mengikuti posisi robot langsung — ketuk untuk mode ruangan/dok",
     "mascot_follows_robot": "Maskot mengikuti robot",

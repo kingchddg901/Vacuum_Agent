@@ -1608,6 +1608,8 @@ export const en = {
   "rooms.list_view": "List view",  // view-toggle: show rooms as a list (vs map view)
   "rooms.locate": "Locate",  // button: make the vacuum chirp to find it (Locate command)
   "rooms.map_view": "Map view",  // view-toggle: show rooms on the map (vs list view)
+  "rooms.mascot_bar_hide": "Hide companion controls",  // caret on the mascot toolbar row: collapses the animal picker, size slider and the follow/physics toggles. The row is controls only — hiding the companion ITSELF is rooms.hide_companion.
+  "rooms.mascot_bar_show": "Show companion controls",
   "rooms.mascot_follow_off": "Make the mascot ride the live robot position (replaces the dot)",
   "rooms.mascot_follow_on": "Mascot follows the live robot position — tap for room/dock mode",
   "rooms.mascot_follows_robot": "Mascot follows robot",

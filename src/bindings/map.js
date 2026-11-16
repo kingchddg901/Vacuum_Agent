@@ -2393,6 +2393,14 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender();
       });
     });
+    // Mascot control row collapse (ISSUE #82)
+    root.querySelectorAll("[data-action='toggle-mascot-bar']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.toggleMascotBarCollapsed?.();
+        this.card._scheduleRender();
+      });
+    });
+
     // Mascot on/off
     root.querySelectorAll("[data-action='map-animal-toggle']").forEach((btn) => {
       this.card._on(btn, "click", () => {

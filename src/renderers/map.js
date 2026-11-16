@@ -714,7 +714,30 @@ export function applyMapRenderers(proto) {
   // change the spacing either host already had.
   proto._renderMapAnimalControls = function (state) {
     return `
-      <div class="evcc-mascot-group">
+      ${/* ISSUE #82 -- the reporter marked this whole row and asked for it gone. It was
+           gated on isMapViewActive only, so nothing hid it, and the paw hides the SPRITE
+           while leaving every control behind. Caret matches the card's other collapses.
+           HIDDEN BY CLASS, NOT OMITTED, the one place this departs from evcc-live-queue:
+           that subtree is a select with a nested IIFE, a range input and three buttons,
+           all template literals, and wrapping it in another one is a far riskier edit
+           than a single CSS rule. display:none leaves the a11y tree and the tab order in
+           the same state omission would.
+           THE CARET IS EXCLUDED FROM THE HIDE BY data-action -- it is the way back, and
+           it sits inside the group it collapses, so hiding the row wholesale would
+           strand the user with nothing to expand it again.
+           NO BACKTICKS IN HERE: this comment lives INSIDE the template literal, so one
+           would terminate it. That is what broke the first version of this edit. */ ""}
+      <div class="evcc-mascot-group${(state.isMascotBarCollapsed?.() ?? false) ? " evcc-mascot-group--collapsed" : ""}">
+        <button
+          type="button"
+          class="evcc-rooms-view-toggle-btn evcc-mascot-caret"
+          data-action="toggle-mascot-bar"
+          aria-expanded="${(state.isMascotBarCollapsed?.() ?? false) ? "false" : "true"}"
+          title="${(state.isMascotBarCollapsed?.() ?? false) ? this.t("rooms.mascot_bar_show") : this.t("rooms.mascot_bar_hide")}"
+          aria-label="${(state.isMascotBarCollapsed?.() ?? false) ? this.t("rooms.mascot_bar_show") : this.t("rooms.mascot_bar_hide")}"
+        >
+          <span aria-hidden="true">${(state.isMascotBarCollapsed?.() ?? false) ? "▸" : "▾"}</span>
+        </button>
         <select
           class="evcc-rooms-animal-select"
           data-action="map-animal-select"

@@ -1577,6 +1577,8 @@
     "list_view": "Widok listy",
     "locate": "Zlokalizuj",
     "map_view": "Widok mapy",
+    "mascot_bar_hide": "Ukryj sterowanie towarzyszem",
+    "mascot_bar_show": "Pokaż sterowanie towarzyszem",
     "mascot_follow_off": "Spraw, aby maskotka podążała za bieżącą pozycją robota (zastępuje kropkę)",
     "mascot_follow_on": "Maskotka podąża za bieżącą pozycją robota — dotknij, aby przełączyć na tryb pokój/stacja",
     "mascot_follows_robot": "Maskotka podąża za robotem",

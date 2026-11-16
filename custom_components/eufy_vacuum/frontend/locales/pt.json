@@ -1367,6 +1367,8 @@
     "list_view": "Vista de lista",
     "locate": "Localizar",
     "map_view": "Vista de mapa",
+    "mascot_bar_hide": "Ocultar controlos da companhia",
+    "mascot_bar_show": "Mostrar controlos da companhia",
     "mascot_follow_off": "Fazer a mascote acompanhar a posição do robô em direto (substitui o ponto)",
     "mascot_follow_on": "A mascote acompanha a posição do robô em direto — toque para o modo divisão/base",
     "mascot_follows_robot": "A mascote acompanha o robô",

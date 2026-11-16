@@ -1355,6 +1355,8 @@
     "list_view": "Lijstweergave",
     "locate": "Lokaliseren",
     "map_view": "Kaartweergave",
+    "mascot_bar_hide": "Metgezelbediening verbergen",
+    "mascot_bar_show": "Metgezelbediening tonen",
     "mascot_follow_off": "Laat de mascotte de live robotpositie volgen (vervangt de stip)",
     "mascot_follow_on": "Mascotte volgt de live robotpositie — tik voor kamer-/dockmodus",
     "mascot_follows_robot": "Mascotte volgt robot",

@@ -1588,6 +1588,8 @@
     "list_view": "清單檢視",
     "locate": "定位",
     "map_view": "地圖檢視",
+    "mascot_bar_hide": "隱藏陪伴動物控制項",
+    "mascot_bar_show": "顯示陪伴動物控制項",
     "mascot_follow_off": "讓吉祥物跟隨機器人的即時位置（取代圓點）",
     "mascot_follow_on": "吉祥物跟隨機器人的即時位置 — 點按可切換房間／基站模式",
     "mascot_follows_robot": "吉祥物跟隨機器人",

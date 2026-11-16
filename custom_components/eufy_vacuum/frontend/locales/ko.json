@@ -1588,6 +1588,8 @@
     "list_view": "목록 보기",
     "locate": "찾기",
     "map_view": "지도 보기",
+    "mascot_bar_hide": "반려동물 컨트롤 숨기기",
+    "mascot_bar_show": "반려동물 컨트롤 표시",
     "mascot_follow_off": "마스코트가 실시간 로봇 위치를 따라다니게 하기 (점 대신 표시)",
     "mascot_follow_on": "마스코트가 실시간 로봇 위치를 따라갑니다 — 방/도크 모드로 전환하려면 탭하세요",
     "mascot_follows_robot": "마스코트가 로봇을 따라감",

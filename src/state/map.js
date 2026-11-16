@@ -53,6 +53,7 @@ export function applyMapState(proto) {
       "evcc_map_view_active_", "evcc_va_render_", "evcc_map_labels_",
       "evcc_animal_", "evcc_animal_scale_", "evcc_animal_on_", "evcc_animal_follow_",
       "evcc_map_xform_panel_", "evcc_map_xform_card_",
+      "evcc_mascot_bar_collapsed_",
       "evcc_floor_tex_map_", "evcc_floor_tex_rooms_",
     ];
     for (const p of PREFIXES) move(p, p + vac);
@@ -2435,6 +2436,46 @@ export function applyMapState(proto) {
       localStorage.setItem(this._animalEnabledKey(), on ? "1" : "0");
     } catch (_) {}
   };
+  /* ISSUE #82 — collapse the companion CONTROL ROW, PERSISTED per robot.
+     Deliberately NOT the session-only shape of `isLiveQueueCollapsed`: the reporter's ask
+     is "I do not need this", and a setting that forgets on every reload does not answer
+     that — they would re-collapse it forever. So it stores, like every sibling mascot
+     setting beside it (`evcc_animal_on_`, `evcc_animal_scale_`, `evcc_animal_follow_`),
+     and keys on the VACUUM so two robots can differ.
+     DEFAULT IS EXPANDED. Absent must read as "not collapsed", so the test is `=== "1"`
+     rather than truthiness — a user who never touched this still sees the controls, and
+     a cleared localStorage degrades to the default rather than hiding a row they never
+     asked to hide.
+     LOCAL TO ONE BROWSER, which is worth saying out loud because it is the limit of this
+     mechanism, not an oversight: nothing here follows the user to another device. */
+  proto._mascotBarCollapsed = null; // null = not yet read
+
+  proto._mascotBarKey = function () {
+    return `evcc_mascot_bar_collapsed_${(this.vacuumObjectId() || "")}`;
+  };
+
+  proto.isMascotBarCollapsed = function () {
+    if (this._mascotBarCollapsed === null) {
+      try {
+        this._mascotBarCollapsed = localStorage.getItem(this._mascotBarKey()) === "1";
+      } catch (_) {
+        this._mascotBarCollapsed = false;
+      }
+    }
+    return this._mascotBarCollapsed;
+  };
+
+  proto.setMascotBarCollapsed = function (on) {
+    this._mascotBarCollapsed = !!on;
+    try {
+      localStorage.setItem(this._mascotBarKey(), on ? "1" : "0");
+    } catch (_) {}
+  };
+
+  proto.toggleMascotBarCollapsed = function () {
+    this.setMascotBarCollapsed(!this.isMascotBarCollapsed());
+  };
+
   proto.toggleMapAnimalEnabled = function () {
     this.setMapAnimalEnabled(!this.mapAnimalEnabled());
   };

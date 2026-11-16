@@ -1588,6 +1588,8 @@
     "list_view": "列表视图",
     "locate": "定位",
     "map_view": "地图视图",
+    "mascot_bar_hide": "隐藏伙伴控件",
+    "mascot_bar_show": "显示伙伴控件",
     "mascot_follow_off": "让吉祥物跟随机器人实时位置（替代圆点）",
     "mascot_follow_on": "吉祥物跟随机器人实时位置 — 点按切换到房间/基站模式",
     "mascot_follows_robot": "吉祥物跟随机器人",
