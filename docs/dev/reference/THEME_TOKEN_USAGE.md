@@ -265,9 +265,9 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-surface-base`** — Surface Base · default `var(--card-background-color, #1c2127)` src/styles/foundation.js
 - custom_components/eufy_vacuum/themes/preloaded.py
+- src/styles/apply-tokens.js (background-color)
 - src/styles/foundation.js (--evcc-surface-card)
 - src/styles/foundation.js
-- src/styles/index.js (background-color)
 - src/styles/modal-host.js (--evcc-modal-bg)
 - src/styles/theme.js (background)
 - src/styles/theme.js
