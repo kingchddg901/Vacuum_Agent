@@ -44,6 +44,23 @@ workflow; §4 is where you confirm it actually arrived.
 
 - [ ] `gh release create vX.Y.Z --title "vX.Y.Z — <headline>" --notes-file <notes>`
       (or via the GitHub UI from the tag). Use the CHANGELOG section as the notes.
+- [ ] **Every link in the notes must be an ABSOLUTE URL.** A relative link is correct in
+      `CHANGELOG.md` — GitHub resolves it from the repo root — and broken the moment the
+      same text becomes a release body, in *both* places users read it: on the release page
+      it resolves against `/releases/tag/vX.Y.Z`, and in the **Marketplace/HACS panel it
+      resolves against the user's own Home Assistant origin**, e.g.
+      `http://homeassistant.local:8123/docs/...`. Nothing warns you; the link just 404s for
+      everyone but you. Prefer a tag-pinned blob URL
+      (`https://github.com/kingchddg901/Vacuum_Agent/blob/vX.Y.Z/docs/…`) so the notes keep
+      pointing at the docs *as of that release*. Check before publishing with:
+
+      ```
+      grep -oE '\]\([^)]+\)' <notes> | grep -v http
+      ```
+
+      Silence is the pass. Caught in 2.7.0 *after* publishing, by the maintainer looking at
+      the store page — the one surface where the breakage is most visible and least
+      expected.
 - [ ] **Pre-release?** Pass `--prerelease` (or tick *Set as a pre-release*) for any version with
       a `-beta`/`-rc` suffix. Without the flag it becomes *latest* for every HACS default-store
       user. The workflow now refuses to publish assets if the suffix and the flag disagree.
