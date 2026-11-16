@@ -539,7 +539,7 @@ class EufyRoomCard extends HTMLElement {
           color: var(--text-muted);
           background: var(--surface-subtle);
           border: 1px solid var(--border);
-          border-radius: 6px;
+          border-radius: var(--evcc-radius-inner, 8px);
           padding: 6px 10px;
         }
 
@@ -639,7 +639,9 @@ class EufyRoomCard extends HTMLElement {
           color: var(--text-muted);
           font-size: calc(0.82rem * var(--evcc-card-font-scale, 1)); font-weight: 600;
           cursor: pointer;
-          transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+          transition: background var(--evcc-transition-normal, 150ms ease),
+                      color var(--evcc-transition-normal, 150ms ease),
+                      border-color var(--evcc-transition-normal, 150ms ease);
           -webkit-tap-highlight-color: transparent;
         }
 

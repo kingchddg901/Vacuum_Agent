@@ -227,7 +227,12 @@ export function sliderRow(label, fieldKey, range, currentVal, tVocabFn, idPrefix
 //: card (--surface-subtle in room-card, --evcc-surface-subtle in dashboard-card).
 export const SLIDER_ROW_CSS = `
   .slider-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .range-slider { flex: 1 1 auto; min-width: 0; }
+  .range-slider { flex: 1 1 auto; min-width: 0;
+    /* The thumb and filled track are painted by the UA, which uses the
+       browser/HA accent and ignores every --evcc-* around it. One property
+       hands it to the card's own accent; on a default install the two are
+       the same value, so this only shows once a theme moves the accent. */
+    accent-color: var(--evcc-accent, #3b82f6); }
   .slider-value {
     flex: 0 0 auto;
     padding: 3px 12px;

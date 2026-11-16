@@ -92,7 +92,11 @@ const CARD_CSS = `
   }
   .evcc-run-profiles-seq-step {
     display: flex; align-items: center; gap: 6px;
-    font-size: calc(0.78rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted);
+    font-size: calc(0.78rem * var(--evcc-card-font-scale, 1));
+    /* REPLICA RNG7V2Y3 -- the panel draws this same markup at
+       --evcc-text-secondary (styles/run-profiles.js:304-309). The card drew
+       --text-muted: 5.74:1 against 8.07:1, from one helper's output. */
+    color: var(--evcc-text-secondary, var(--text-muted));
   }
   .evcc-run-profiles-seq-step::before {
     counter-increment: evcc-seq; content: counter(evcc-seq);

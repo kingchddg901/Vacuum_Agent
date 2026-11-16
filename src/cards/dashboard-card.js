@@ -1365,7 +1365,7 @@ const CARD_CSS = `
   .room-row.is-selected { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
   .room-head { display: flex; align-items: center; gap: 10px; padding: var(--evcc-card-row-padding, var(--evcc-card-padding, 8px 10px)); }
   .include { width: 22px; height: 22px; flex-shrink: 0; border: none; background: transparent; cursor: pointer; padding: 0; }
-  .include .box { display: block; width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--text-muted); transition: all 120ms ease; }
+  .include .box { display: block; width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--text-muted); transition: all var(--evcc-transition-normal, 150ms ease); }
   .room-row.is-selected .include .box { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--surface); }
   .room-name { flex: 1; min-width: 0; font-size: calc(0.92rem * var(--evcc-card-font-scale, 1)); font-weight: 600; color: var(--evcc-text-strong, var(--text-primary)); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
@@ -1373,7 +1373,7 @@ const CARD_CSS = `
   .room-row.is-open .chevron { transform: rotate(180deg); }
 
   .room-body { display: flex; flex-direction: column; gap: var(--evcc-section-gap, 10px); padding: 4px 12px 12px; border-top: 1px solid var(--border); }
-  .carpet { font-size: calc(0.78rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted); background: var(--evcc-surface-subtle, rgba(255,255,255,0.04)); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+  .carpet { font-size: calc(0.78rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted); background: var(--evcc-surface-subtle, rgba(255,255,255,0.04)); border: 1px solid var(--border); border-radius: var(--evcc-radius-inner, 8px); padding: 6px 10px; }
   .field-group { display: flex; flex-direction: column; gap: var(--evcc-card-field-gap, var(--evcc-card-gap, 6px)); }
   .field-label { font-size: calc(0.70rem * var(--evcc-card-font-scale, 1)); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
   /* REPLICA RNN1M4G1 -- the card CHIP. Twin: src/room-card.js, which carries the
@@ -1393,6 +1393,15 @@ const CARD_CSS = `
   .launcher { display: flex; flex-direction: column; gap: var(--evcc-section-gap, 10px); }
   .launch-group { display: flex; flex-direction: column; gap: var(--evcc-space-xs, 4px); }
   select { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-primary); font-size: calc(0.88rem * var(--evcc-card-font-scale, 1)); appearance: none; -webkit-appearance: none; }
+  /* The POPUP, which the rule above cannot reach. A closed <select> takes the card's
+     background; the open option list is painted by the UA and on several platforms
+     ignores the control's own colours entirely, so a dark card opened a light list.
+     src/styles/foundation.js:134-137 already carries exactly this rule -- but it lives
+     in sharedChipStyles, which NO card imports (the cards pull only foundationTokens),
+     so the fix has existed and never applied here. This is the ONLY card-body select in
+     the three cards: room-card's and profile-card's are inside their config EDITORS,
+     which are HA chrome and deliberately left alone. */
+  select option { background: var(--evcc-surface-panel, #1c2127); color: var(--evcc-text-primary, #f0f2f5); }
   .hint { font-size: calc(0.72rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted); padding: 0 2px; }
 
   .zone { display: flex; flex-direction: column; gap: 8px; }
@@ -1415,7 +1424,7 @@ const CARD_CSS = `
   .map-loading { padding: 24px 12px; text-align: center; font-size: calc(0.78rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted); }
 
   .footer { display: flex; justify-content: flex-end; align-items: center; gap: var(--evcc-space-sm, 8px); padding: 10px 16px; border-top: 1px solid var(--border); }
-  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: var(--evcc-radius-chip, 999px); border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: calc(0.82rem * var(--evcc-card-font-scale, 1)); font-weight: 600; cursor: pointer; transition: all 120ms ease; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: var(--evcc-radius-chip, 999px); border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: calc(0.82rem * var(--evcc-card-font-scale, 1)); font-weight: 600; cursor: pointer; transition: all var(--evcc-transition-normal, 150ms ease); }
   .btn:hover { color: var(--text-primary); }
   .btn-start { box-shadow: var(--evcc-card-action-glow, none); color: var(--evcc-text-on-accent, #fff); border-color: transparent; background: var(--accent); }
   .btn-start:hover { background: color-mix(in srgb, var(--accent) 85%, white); }

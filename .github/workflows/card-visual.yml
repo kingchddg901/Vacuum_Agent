@@ -10,6 +10,8 @@ on:
     paths:
       - "src/**"
       - "harness/**"
+      # the i18n specs read the shipped packs, so a pack-only change must trigger them
+      - "custom_components/eufy_vacuum/frontend/locales/**"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/card-visual.yml"
@@ -17,6 +19,8 @@ on:
     paths:
       - "src/**"
       - "harness/**"
+      # the i18n specs read the shipped packs, so a pack-only change must trigger them
+      - "custom_components/eufy_vacuum/frontend/locales/**"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/card-visual.yml"
@@ -40,8 +44,18 @@ jobs:
       # [FLOOR-1] every registry floor material actually rendering -- had never once
       # executed on a runner: a correct gate with no caller, which is the same shape
       # as the dead --evcc-sem-info claimant the spec's own allowlist warns about.
-      - name: Visual regression + per-device theme resolution + gallery completeness
-        run: npx playwright test -c harness/playwright.config.mjs visual device-theme gallery-completeness card-preview card-density
+      # EVERY spec, not a named subset. This step used to list five of the nineteen
+      # spec files, and the other fourteen -- smoke, cvd, the four i18n suites,
+      # intake, real-frame, tab-gating, shape-marks and the rest -- never ran in CI
+      # at all. docs/testing/frontend/render-harness.md says they run "everywhere",
+      # which means NOT PLATFORM-GATED rather than "CI runs them", and that is an
+      # easy sentence to read the other way.
+      # It cost a real miss: smoke.spec.mjs went red at 918c6d06 when the Dashboard
+      # Cards preview started returning "" without a hass, and sat red for three
+      # commits until someone ran it by hand. Measured 2026-11-16: the full suite is
+      # 332 passed / 32 skipped in 41s locally, so the subset bought nothing.
+      - name: Frontend harness suite (all specs, incl. visual baselines)
+        run: npx playwright test -c harness/playwright.config.mjs
 
       - name: Upload diff report on failure
         if: failure()
