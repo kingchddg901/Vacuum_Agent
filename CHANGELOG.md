@@ -8,6 +8,68 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [2.7.0] - 2026-11-15
+
+**Your own floors.** A material you author — or that Material Author exports — can be dropped into your config directory and chosen per room, then turned, placed and sized in real metres. Plus cards that can wear the Vacuum Agent theme instead of Home Assistant's, and an install about two thirds smaller to download.
+
+> **Restart Home Assistant after updating.** This release changes both the Python side and the card. The room-card bundle's URL is minted at integration setup, so a hard refresh cannot pick up a new one — a restart can, and updating through the Marketplace or HACS restarts anyway.
+
+Thanks to [@RkcCorian](https://github.com/RkcCorian), who filed [#81](https://github.com/kingchddg901/Vacuum_Agent/issues/81), [#82](https://github.com/kingchddg901/Vacuum_Agent/issues/82) and [#83](https://github.com/kingchddg901/Vacuum_Agent/issues/83) within half an hour of each other. All three are addressed below — #83 partly by a new variable and partly by finally documenting the eight that already worked.
+
+### Added
+
+- **Drop-in floor materials.** A material pack placed in `config/eufy_vacuum/materials/<id>/` — a `material.json` plus its greyscale masks — is validated at startup, catalogued, served to the card, and minted into the theme editor as its own group with its own colour and opacity controls. Pick one per room from the room editor. It lives under your config directory rather than inside the integration because that directory survives an update, and because anything inside the integration ships to every user.
+
+  Masks must be 2048×2048 greyscale. Both conditions are refused rather than accepted-and-broken: a mask at the wrong canvas silently *misaligns* instead of erroring, and an RGB mask costs roughly three times the bytes while rendering identically, because the compositor reads luminance only. A pack that fails validation is logged and skipped — it never stops the integration starting.
+
+- **A drop-in is fitted to each room, not tiled across the map.** An authored material is a picture of a piece of floor, so by default it is scaled to cover each room once, clipped to that room's shape, and never repeated. A pack that declares `"tileable": true` tiles instead, on the same shared grid the built-in floor types use — that claim asserts the masks are seamless edge to edge. The built-in types are untouched and still tile, so planks still run through a doorway.
+
+- **Place a fitted material inside its room, from the map.** Pan, zoom and centre it with the placement panel, while looking at the floor you are placing. Stored per room as `floor_fit`.
+
+- **Turn a room's floor, at 45° set points** — eight angles around the full circle, per room rather than per material, because the planks in a hallway and a living room routinely run different ways and rotation describes the house. The setup room editor offers this for any floor; the map-side turn buttons sit in the placement panel, which appears for a fitted drop-in material only (a tiling material shares one map-wide grid and has nothing to place).
+
+- **Size a material in metres.** On a pack that declares `"tileable": true`, `sample_m` says how much real floor one tile of its masks covers and the card derives the raster scale from the map's own resolution — so the material arrives at the size it was authored at rather than at a multiplier that depends on the map. A layer may also declare its own `scale`, so one material can tile two of its masks at different rates. Both are read for tiling packs; a fitted pack is cover-scaled to its room and reads neither.
+
+- **The new per-room appearance fields are available to automations,** through `floor_material`, `floor_rotation` and `floor_fit` on the room-update service. Omitting a field leaves it alone; passing it empty clears it. An unknown material id is harmless — the card falls back to the room's floor type and leaves the stored value alone, so reinstalling the material restores the look.
+
+- **The cards can wear the Vacuum Agent theme.** A checkbox in each card's editor — room, Dashboard Mode and Profile — off by default. The panel has always worn the VA theme while cards on a dashboard wore Home Assistant's, and there was no way to carry a VA palette onto a dashboard. Turning it on carries the active theme's colours, opacities and font onto that card; turning it back off hands the card to the HA theme again, immediately. Each card is independent, so you can mix: a themed room card beside a Dashboard Mode card that still matches your dashboard.
+
+- **Your Home Assistant theme can style the cards, and the guide now says how.** The cards have always followed your HA theme — they read eight of its variables and compute everything else from them — but that was only written down in developer docs, so there was nowhere for a theme author to find it. The user guide now lists them and what each one moves ([Dashboard & Room cards → Styling the cards from a Home Assistant theme](docs/user-guide/20-dashboard-and-room-cards.md)). The one worth knowing is `primary-text-color`: the cards derive every translucent overlay from it, which is why a light theme produces a readable card instead of white-on-white.
+
+  There is also a new `evcc-surface-card-override`, for changing the card's own background without moving the panels and wells that `card-background-color` also moves. It takes any colour, translucency included:
+
+  ```yaml
+  my-theme:
+    evcc-surface-card-override: "rgba(50, 50, 50, 0.65)"
+  ```
+
+  This is [#83](https://github.com/kingchddg901/Vacuum_Agent/issues/83), answered in both halves. The reporter's own attempt — setting `evcc-surface-card` in their theme — still does nothing, and that is worth stating plainly rather than quietly fixing: the cards' `--evcc-…` names are *computed* from those eight variables, and in CSS a value an element works out for itself always beats one it inherits. They are outputs of the theming system, not inputs to it. The instinct was right and the name was one level too low.
+
+- **The cards declare their own size,** so Home Assistant's sections view stops warning that they "may not display correctly with custom sizes". This covers all three cards — room, Dashboard Mode and Profile. Each card's default span is the width it already rendered at, so an existing dashboard should not move; the minimum is deliberately permissive, because how narrow a card can usefully get depends on your room names and your language, not on ours.
+
+- **A caret collapses the companion row,** hiding the animal picker, size slider and follow/physics toggles in one press, and remembering the choice per robot ([#82](https://github.com/kingchddg901/Vacuum_Agent/issues/82)).
+
+### Fixed
+
+- **A localized install could read a mopping Roborock as mopless.** On a German install an S7 MaxV offered vacuum-only commands. For a model not in the built-in catalogue, the adapter decides whether mopping is available by asking whether a water-box entity exists — and it asked using an entity id derived in English, while Home Assistant builds an entity id from the *translated* name when the entity is first created. So on an install whose entity ids are localised the probe asked about an id that was never going to exist, got no answer, and the model was treated as unable to mop. It now finds the sibling entity by what it *is* rather than by what it would be called in English, which means a renamed entity survives this too ([#81](https://github.com/kingchddg901/Vacuum_Agent/issues/81), reported by @RkcCorian).
+
+- **The install download is about two thirds smaller.** The published 2.6.1 asset is 29,462,699 bytes, and this release takes just over 20 MB out of it. Three full-colour source photographs had been sitting in the texture directory since May as generator input, and because the release asset is that directory taken whole, every user downloaded all of them. Nothing in the shipped package ever read them — the materials they belong to were re-authored as split masks in July, and the photographs stayed behind inert. They now live beside the project's other generator inputs, and a new gate fails the build in both directions: if a texture on disk is referenced by nothing, or if the registry names a mask that is not on disk. No rendering changed; all 18 masks and all built-in materials render as before.
+
+- **A deployed card update could not reach a browser that already had the old one.** The map bundle is pulled in by the dashboard card through a hard-coded URL carrying no version, so nothing could cache-bust it — unlike the panel and card bundles, whose URLs Home Assistant stamps. It now carries a version derived from the bundle's own bytes.
+
+- **A floor-texture toggle appeared on maps that have no polygon layer to toggle.** There are three texture controls, one per render path, and this one drives the SVG-polygon layer. It was shown whenever the map was open rather than when that layer exists, so on a raster map it sat inert next to a near-identically-named button that works.
+
+- **The three texture toggles now have three names you can tell apart.** They drive different render paths, and two of the three read almost identically ("Hide map textures" beside "Toggle floor textures").
+
+- **On a small map, the floor-texture mask was upscaled less than intended.** The upscale was capped in the wrong unit — the target is an output size, the cap bounded the multiplier — so the two disagreed for any map whose longest side is under about 265 texels, and the smaller the map the bigger the miss: a 60-texel-wide map reached a fifth of the stated size. Maps above that are unaffected and look the same as before.
+
+### Internal
+
+- A machine-readable contract for generated material packs, and an authoring route documented end to end, so Material Author can export a drop-in pack and be held to the shipped validator rather than to prose.
+- A material's layer set is a contract, not a defect: a generator may publish the same layer suffixes every time so a reader never has to work out which layers a pack happens to have, which means dead constant-fill layers are expected and no longer warn.
+- The sample-size clamp gate gained a test, ablated eight ways — it had been proven by hand once, in a session, which is evidence that does not outlive the session.
+- A scoped theme import *replaces* its namespace rather than merging into it, so a key the caller omits is cleared. That is the intended behaviour and was already pinned by a test; it is now stated where a caller reads it. If you build an import payload, build it from `get_theme_library` rather than from a partial hand-written dict.
+
 ## [2.6.1] - 2026-11-11
 
 **Fixes and foundations.** Eight user-visible fixes, no new features, and no change to the card at all — so unlike 2.6.0, this one needs a Home Assistant restart rather than a hard refresh.
