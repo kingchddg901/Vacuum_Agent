@@ -28,6 +28,11 @@ import { canZoneRepeat } from "./zone-repeat.js";
 import { deriveSequenceRowState, findCleanOrderSensor, findOverrideSwitch } from "../state/sequence-override.js";
 import { entityDisplayName } from "../state/entity-display-name.js";
 
+
+/* Build-injected cache-bust token for the lazily-imported map bundle (esbuild
+   --define __MAP_VER__, keyed to that bundle's own bytes). "dev" unbundled. */
+const MAP_VER = (typeof __MAP_VER__ !== "undefined") ? __MAP_VER__ : "dev";
+
 const CARD_NAME   = "vacuum-agent-dashboard";
 const CARD_EDITOR = "vacuum-agent-dashboard-editor";
 const DOMAIN      = "eufy_vacuum";
@@ -1216,7 +1221,16 @@ class EufyDashboardCard extends HTMLElement {
       // Dynamic import of the heavy map bundle's ABSOLUTE served URL (external; esbuild
       // leaves it a runtime load, like main.js's animal-svg) — loads only on demand.
       if (!this._mapModulePromise) {
-        this._mapModulePromise = import("/eufy_vacuum/frontend/eufy-vacuum-map.js");
+        // Cache-busted by the map bundle's OWN content hash (esbuild --define
+        // __MAP_VER__, see scripts/build-card.mjs). This URL is hard-coded here rather
+        // than minted by `_frontend_url.py` like the other two bundles, so without a
+        // version a deploy that changed the map left every browser on the old copy --
+        // and not because of a service worker: on a plain-HTTP LAN origin there is none
+        // (measured 2026-11-16), it is ordinary HTTP caching of a URL that never moved.
+        // "dev" when unbundled, matching _ASSET_VER / SHIPPED_LOCALE_VER next door.
+        this._mapModulePromise = import(
+          `/eufy_vacuum/frontend/eufy-vacuum-map.js?v=${MAP_VER}`
+        );
       }
       await this._mapModulePromise;
     } finally {

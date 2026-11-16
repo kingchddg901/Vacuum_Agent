@@ -13,6 +13,9 @@
  */
 import * as esbuild from "esbuild";
 
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+
 import { hashDir } from "./hash-dir.mjs";
 
 const TEXTURES_DIR = "custom_components/eufy_vacuum/textures";
@@ -53,8 +56,26 @@ const shared = {
 // is on, and the always-loaded cards bundle stays lean. Self-contained bundles avoid
 // the shared-chunk fragility of esbuild splitting; the duplicated common code is the
 // price of a lazy, independently-cacheable map module.
-await esbuild.build({ ...shared, entryPoints: ["src/all-cards.js"], outfile: `${outDir}/eufy-vacuum-command-center.js` });
-await esbuild.build({ ...shared, entryPoints: ["src/cards-standalone.js"], outfile: `${outDir}/eufy-vacuum-cards.js` });
-await esbuild.build({ ...shared, entryPoints: ["src/cards/vacuum-map-host.js"], outfile: `${outDir}/eufy-vacuum-map.js` });
+// anchor: CNMAPVER  the map host is built FIRST so its OUTPUT can be hashed
+//
+// THE ONE BUNDLE NOBODY COULD CACHE-BUST. The other two reach the browser through
+// `_frontend_url.py`, which appends `?v=<mtime>` when HA mints their URLs. This one is
+// not minted by HA at all -- the dashboard card pulls it in with a runtime
+// `import("/eufy_vacuum/frontend/eufy-vacuum-map.js")`, a URL hard-coded in JS, with no
+// version on it and `cache_headers` doing nothing for it. A deploy that changed the map
+// bundle left every browser on the old copy until the URL changed, which it never did.
+//
+// HASHED FROM THE OUTPUT, not from its sources. Hashing `src/` would bust the 1.5 MB map
+// bundle on any source change anywhere, including ones that cannot reach it. Building it
+// first costs nothing -- the three builds are independent -- and makes the token a
+// function of the bytes actually served, which is the same contract __ASSET_VER__ and
+// __LOCALE_VER__ already hold.
+const mapOut = `${outDir}/eufy-vacuum-map.js`;
+await esbuild.build({ ...shared, entryPoints: ["src/cards/vacuum-map-host.js"], outfile: mapOut });
+const mapVer = createHash("sha256").update(readFileSync(mapOut)).digest("hex").slice(0, 10);
 
-console.log(`built command-center + cards + map-host bundles  (texture asset ver ${assetVer}, locale ver ${localeVer})`);
+const withMap = { ...shared, define: { ...shared.define, __MAP_VER__: JSON.stringify(mapVer) } };
+await esbuild.build({ ...withMap, entryPoints: ["src/all-cards.js"], outfile: `${outDir}/eufy-vacuum-command-center.js` });
+await esbuild.build({ ...withMap, entryPoints: ["src/cards-standalone.js"], outfile: `${outDir}/eufy-vacuum-cards.js` });
+
+console.log(`built command-center + cards + map-host bundles  (texture asset ver ${assetVer}, locale ver ${localeVer}, map ver ${mapVer})`);
