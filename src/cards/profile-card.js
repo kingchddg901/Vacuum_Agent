@@ -61,11 +61,11 @@ const CARD_CSS = `
     padding: 16px;
     color: var(--text-primary);
   }
-  .evcc-pcard-name { font-size: 1.15rem; font-weight: 600; line-height: 1.2; color: var(--text-primary); }
+  .evcc-pcard-name { font-size: 1.15rem; font-weight: 600; line-height: 1.2; color: var(--evcc-text-strong, var(--text-primary)); }
   .evcc-pcard-meta { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
   .evcc-pcard-meta-rooms { color: var(--text-muted); font-size: 0.85rem; margin-top: 2px; }
   .evcc-pcard-manifest { margin-top: 12px; }
-  .evcc-pcard-footer { margin-top: 16px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+  .evcc-pcard-footer { margin-top: var(--evcc-space-lg, 16px); display: flex; align-items: center; justify-content: flex-end; gap: var(--evcc-space-sm, 8px); }
   .evcc-pcard-footer .pcard-lang { margin-inline-end: auto; }
   .evcc-pcard-run {
     appearance: none; border: none; cursor: pointer;

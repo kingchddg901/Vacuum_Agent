@@ -499,17 +499,18 @@ class EufyRoomCard extends HTMLElement {
           width: 9px; height: 9px;
           border-radius: 50%; flex-shrink: 0;
           background: var(--border);
-          transition: background 150ms ease;
+          transition: background var(--evcc-transition-normal, 150ms ease);
         }
 
         .is-enabled .indicator {
           background: var(--accent);
-          box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent);
+          box-shadow: var(--evcc-status-dot-shadow,
+                        0 0 6px color-mix(in srgb, var(--accent) 60%, transparent));
         }
 
         .room-name {
           font-size: 0.96rem; font-weight: 700;
-          color: var(--text-primary); flex: 1; min-width: 0;
+          color: var(--evcc-text-strong, var(--text-primary)); flex: 1; min-width: 0;
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
@@ -621,7 +622,7 @@ class EufyRoomCard extends HTMLElement {
 
         /* ---- footer ---- */
         .footer {
-          display: flex; justify-content: flex-end; align-items: center; gap: 8px;
+          display: flex; justify-content: flex-end; align-items: center; gap: var(--evcc-space-sm, 8px);
           padding: 10px 16px;
           border-top: 1px solid var(--border);
         }

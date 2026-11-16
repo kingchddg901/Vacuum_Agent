@@ -1346,7 +1346,7 @@ const CARD_CSS = `
 
   .header { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px 10px; flex-wrap: wrap; }
   .header .va-lang { margin-inline-start: auto; align-self: center; }
-  .title { font-size: 1.0rem; font-weight: 700; color: var(--text-primary); }
+  .title { font-size: 1.0rem; font-weight: 700; color: var(--evcc-text-strong, var(--text-primary)); }
   .meta { font-size: 0.80rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 8px; }
   .batt { white-space: nowrap; }
 
@@ -1355,8 +1355,8 @@ const CARD_CSS = `
   .rooms.is-disabled { opacity: 0.4; pointer-events: none; }
   .group-head { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
   .group-head .section-label { flex: 0 0 auto; }
-  .group-head .count { font-size: 0.68rem; font-weight: 600; color: color-mix(in srgb, var(--accent) 90%, white); background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 10px; padding: 1px 8px; }
-  .group-chevron { margin-inline-start: auto; color: var(--text-muted); font-size: 0.9rem; transition: transform 150ms ease; }
+  .group-head .count { font-size: 0.68rem; font-weight: 600; color: var(--evcc-chip-active-text, color-mix(in srgb, var(--accent) 90%, white)); background: var(--evcc-chip-active-bg, color-mix(in srgb, var(--accent) 16%, transparent)); border-radius: 10px; padding: 1px 8px; }
+  .group-chevron { margin-inline-start: auto; color: var(--text-muted); font-size: 0.9rem; transition: transform var(--evcc-transition-normal, 150ms ease); }
   .rooms:not(.is-collapsed) .group-chevron,
   .map-section:not(.is-collapsed) .group-chevron { transform: rotate(180deg); }
   .empty { padding: 16px; font-size: 0.85rem; color: var(--text-muted); }
@@ -1367,9 +1367,9 @@ const CARD_CSS = `
   .include { width: 22px; height: 22px; flex-shrink: 0; border: none; background: transparent; cursor: pointer; padding: 0; }
   .include .box { display: block; width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--text-muted); transition: all 120ms ease; }
   .room-row.is-selected .include .box { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--surface); }
-  .room-name { flex: 1; min-width: 0; font-size: 0.92rem; font-weight: 600; color: var(--text-primary); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .room-name { flex: 1; min-width: 0; font-size: 0.92rem; font-weight: 600; color: var(--evcc-text-strong, var(--text-primary)); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
-  .chevron { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.9rem; transition: transform 150ms ease; }
+  .chevron { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.9rem; transition: transform var(--evcc-transition-normal, 150ms ease); }
   .room-row.is-open .chevron { transform: rotate(180deg); }
 
   .room-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 12px 12px; border-top: 1px solid var(--border); }
@@ -1414,7 +1414,7 @@ const CARD_CSS = `
   .map-slot { display: block; min-height: 40px; }
   .map-loading { padding: 24px 12px; text-align: center; font-size: 0.78rem; color: var(--text-muted); }
 
-  .footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
+  .footer { display: flex; justify-content: flex-end; align-items: center; gap: var(--evcc-space-sm, 8px); padding: 10px 16px; border-top: 1px solid var(--border); }
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 120ms ease; }
   .btn:hover { color: var(--text-primary); }
   .btn-start { color: var(--evcc-text-on-accent, #fff); border-color: transparent; background: var(--accent); }
