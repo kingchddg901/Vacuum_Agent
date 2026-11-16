@@ -1383,7 +1383,11 @@ const CARD_CSS = `
   .chips { display: flex; flex-wrap: wrap; gap: var(--evcc-chip-gap, 6px); }
   .chip { display: inline-flex; align-items: center; justify-content: center; min-height: var(--evcc-chip-height, 24px); padding: var(--evcc-chip-padding, 5px 14px); border-radius: var(--evcc-chip-radius, 999px); border: 1px solid var(--evcc-chip-border, var(--evcc-border-default)); background: var(--evcc-chip-bg, var(--evcc-surface-input)); color: var(--evcc-chip-text, var(--evcc-text-secondary)); font-size: var(--evcc-chip-font-size, 0.82rem); font-weight: var(--evcc-chip-font-weight, 500); line-height: 1; cursor: pointer; transition: background 120ms ease, border-color 120ms ease, color 120ms ease; }
   .chip:hover:not(.active) { background: var(--evcc-chip-hover-bg, var(--evcc-surface-panel)); color: var(--evcc-chip-hover-text, var(--evcc-text-primary)); border-color: var(--evcc-chip-hover-border, var(--evcc-border-strong)); }
-  .chip.active { background: var(--evcc-chip-active-bg, color-mix(in srgb, var(--evcc-accent) 18%, transparent)); color: var(--evcc-chip-active-text, var(--evcc-accent)); border-color: var(--evcc-chip-active-border, color-mix(in srgb, var(--evcc-accent) 40%, transparent)); font-weight: 600; }
+  /* The active label's fallback is the card's SHIPPED colour (accent lightened 10%
+     toward white, 4.02:1), not the panel's token default (bare accent, 3.49:1) -- the
+     one deliberate exception to this set's fallbacks-are-the-token-defaults rule. See
+     the long note at the twin in src/room-card.js. Pinned by [CHP-4]. */
+  .chip.active { background: var(--evcc-chip-active-bg, color-mix(in srgb, var(--evcc-accent) 18%, transparent)); color: var(--evcc-chip-active-text, color-mix(in srgb, var(--evcc-accent) 90%, white)); border-color: var(--evcc-chip-active-border, color-mix(in srgb, var(--evcc-accent) 40%, transparent)); font-weight: 600; }
   ${SLIDER_ROW_CSS}
 
   .launcher { display: flex; flex-direction: column; gap: 10px; }

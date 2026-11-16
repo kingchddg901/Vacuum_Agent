@@ -1874,6 +1874,10 @@
         "desc": "Les mini-cartes de pièce exposent ensemble les pastilles de profil, les pastilles de pièce et le traitement de surface des pièces.",
         "title": "Aperçu de la carte de pièce"
       },
+      "dashboard_cards": {
+        "title": "Votre carte",
+        "desc": "Une véritable carte de pièce de votre propre tableau de bord : le cadre que vous modifiez est bien celui que vous obtiendrez."
+      },
       "shell": {
         "desc": "Les exemples de texte d'accent, de titre et de corps montrent la voix de la coquille que ce groupe contrôle.",
         "title": "Aperçu de la coquille et de la typographie"

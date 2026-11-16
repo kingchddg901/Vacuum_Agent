@@ -1,6 +1,8 @@
 // Root custom element for the Eufy Vacuum Command Center Lovelace card.
 
-import { CARD_NAME, CARD_VERSION }            from "./constants.js";
+import { CARD_NAME, CARD_VERSION, ROOM_CARD_NAME } from "./constants.js";
+import { roomSwitchesFor }                    from "./cards/_shared.js";
+import { THEME_PREVIEW_CARD_SLOT_ID }         from "./renderers/theme-preview-registry.js";
 import { ensureUserMaterialsLoaded } from "./textures/ensure-user-materials.js";
 import { VacuumCardState }                    from "./state/index.js";
 import { VIEWPORT_MOBILE_MAX_WIDTH }          from "./state/viewport.js";  // temp layout probe
@@ -1800,9 +1802,61 @@ class EufyVacuumCommandCenter extends HTMLElement {
 
     this._updateModalHost();
     this._bindings?.bindEvents();
+    this._maybeMountThemePreviewCard();
     this._restoreShadowFocusState(focusSnapshot);
     this._restoreShadowScrollState(scrollSnapshot);
     this._applyChromeDefault();
+  }
+
+  /**
+   * Mount a REAL room card into the theme editor's Dashboard Cards preview.
+   *
+   * Called after every render, exactly like the dashboard card's _maybeMountMap, and
+   * for the same structural reason: renderers are pure HTML-string producers, so they
+   * cannot hand a custom element its hass. The renderer emits an empty slot; this
+   * fills it.
+   *
+   * WHY A REAL CARD. The group styles the three cards a user adds to their own
+   * dashboard. Those are custom elements with their own shadow roots, sharing nothing
+   * with the panel's renderers but token names, so the panel's renderRoomCard would
+   * preview the wrong surface while looking right. Drawing a facsimile instead would
+   * add a FOURTH copy of replica RNA0TM68 (the card frame) that could drift from all
+   * three real ones. Mounting the real element is the only option that cannot lie.
+   *
+   * THE ELEMENT IS PERSISTENT and re-parented across renders rather than recreated:
+   * a fresh card on every keystroke would re-run setConfig and its one-shot data
+   * fetch, and the preview would flicker while a slider moved.
+   *
+   * NO va_theme. The card reads --evcc-* by inheritance from this host, and every
+   * editor control writes the resolved draft inline here via applyThemeToCard — so
+   * the preview tracks the editor on the same frame. Setting va_theme would route it
+   * through the theme SENSOR instead, which only updates once a draft is SAVED, and
+   * the preview would lag by a save.
+   */
+  _maybeMountThemePreviewCard() {
+    const slot = this.shadowRoot?.getElementById(THEME_PREVIEW_CARD_SLOT_ID);
+    if (!slot) {
+      // The pane is gone — another group, another tab, or no rooms. Drop the element
+      // so it stops taking hass updates; leaving it parented to a detached node is a
+      // live subscriber doing invisible work on every state change.
+      this._themePreviewCardEl?.remove();
+      this._themePreviewCardEl = null;
+      return;
+    }
+
+    const vacuumEntityId = this._config?.vacuum_entity_id;
+    const rooms = roomSwitchesFor(this._hass, vacuumEntityId);
+    if (!rooms.length) return;   // the renderer checks this too; it can change between
+
+    if (!this._themePreviewCardEl) {
+      const el = document.createElement(ROOM_CARD_NAME);
+      // setConfig BEFORE hass, the order every card in this repo expects: setConfig
+      // establishes which room to read, and the hass setter triggers the first render.
+      el.setConfig({ vacuum_entity_id: vacuumEntityId, room_id: rooms[0].attrs.room_id });
+      this._themePreviewCardEl = el;
+    }
+    if (this._themePreviewCardEl.parentNode !== slot) slot.appendChild(this._themePreviewCardEl);
+    this._themePreviewCardEl.hass = this._hass;
   }
 
   /**

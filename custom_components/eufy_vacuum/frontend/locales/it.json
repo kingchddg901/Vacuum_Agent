@@ -1861,6 +1861,10 @@
         "desc": "Mini schede stanza espongono insieme i chip di profilo, i chip di stanza e il trattamento della superficie della stanza.",
         "title": "Anteprima scheda stanza"
       },
+      "dashboard_cards": {
+        "title": "La tua scheda",
+        "desc": "Una vera scheda stanza dalla tua dashboard, quindi la cornice che stai modificando è la cornice che otterrai."
+      },
       "shell": {
         "desc": "Gli esempi di testo accento, intestazione e corpo mostrano la voce del guscio che questo gruppo controlla.",
         "title": "Anteprima guscio e tipografia"

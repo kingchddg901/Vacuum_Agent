@@ -1162,6 +1162,10 @@
         "desc": "Kartu ruangan mini menampilkan chip profil, chip ruangan, dan perlakuan permukaan ruangan secara bersamaan.",
         "title": "Pratinjau Kartu Ruangan"
       },
+      "dashboard_cards": {
+        "title": "Kartu Anda",
+        "desc": "Kartu ruangan nyata dari dasbor Anda sendiri, jadi bingkai yang Anda edit adalah bingkai yang akan Anda dapatkan."
+      },
       "shell": {
         "desc": "Contoh teks aksen, judul, dan isi menunjukkan gaya cangkang yang dikendalikan grup ini.",
         "title": "Pratinjau Cangkang & Tipografi"

@@ -10,7 +10,8 @@
  * ============================================================
  */
 
-import { THEME_PREVIEW_REGISTRY } from "./theme-preview-registry.js";
+import { THEME_PREVIEW_REGISTRY, THEME_PREVIEW_CARD_SLOT_ID } from "./theme-preview-registry.js";
+import { roomSwitchesFor } from "../cards/_shared.js";
 import { animalDisplayName } from "../theme-tokens/animals.js";
 import { floorTypeDisplayName } from "../theme-tokens/floor-scope.js";
 import { currentUserMaterials } from "../textures/user-materials.js";
@@ -251,6 +252,52 @@ export function applyThemePreviewRenderers(proto) {
     // --evcc-border-warning had no sample anywhere - it is a semantic colour
     // applied to an edge, not a step on that scale.
     return this._themePreviewRoomGrid([this._themePreviewRoom()]);
+  };
+
+  /**
+   * THE ONE PREVIEW THAT IS NOT A RENDERER'S OUTPUT.
+   *
+   * Every other subject in this file previews a surface the PANEL draws, so a
+   * renderer can produce it as a string. The Dashboard Cards group styles the three
+   * cards a user adds to their own dashboard, and those are custom elements with
+   * their own shadow roots that share nothing with the panel's renderers but token
+   * names. `renderRoomCard` is the PANEL's room tile: reusing it here would preview
+   * the wrong surface while looking completely correct, which is the most expensive
+   * mistake available in this file.
+   *
+   * Drawing a facsimile is worse again. The card frame is replica set RNA0TM68, three
+   * copies that cannot be unified because one card frames with <ha-card> and two with
+   * a plain div. A drawn preview would be a FOURTH copy, free to drift from all three
+   * — exactly the failure docs/dev/00c-replicas.md exists to prevent, and one this
+   * repo has already paid once (RNJE1GDZ, the sample room card diverging from the
+   * real one).
+   *
+   * So this emits a SLOT and nothing else. `_maybeMountThemePreviewCard` in main.js
+   * mounts a REAL `eufy-room-card` into it after render — the same shape as the
+   * dashboard card's `_maybeMountMap`, and for the same reason: renderers are pure
+   * HTML-string producers and cannot hand a custom element its hass.
+   *
+   * It follows the editor LIVE for free. The mounted card reads `--evcc-*` by
+   * inheritance from the panel host, and every editor control writes the resolved
+   * draft inline onto that host via applyThemeToCard. So a slider moves the real
+   * card on the same frame, with no re-render and no persistence. Deliberately NOT
+   * `va_theme: true` — that path resolves from the theme SENSOR, which only updates
+   * when the draft is saved, so ticking it would make the preview lag by a save.
+   *
+   * Returns "" when there is nothing honest to show, which makes the pane itself
+   * return "" — the same way the Map group renders no preview today.
+   */
+  proto._renderThemePreviewDashboardCards = function () {
+    const hass = this.card?._hass;
+    const vacuumEntityId = this.card?._config?.vacuum_entity_id;
+    if (!hass || !vacuumEntityId) return "";
+    // roomSwitchesFor is the canonical "rooms of this vacuum" predicate. Using it
+    // rather than re-deriving keeps this off the replica register entirely.
+    if (!roomSwitchesFor(hass, vacuumEntityId).length) return "";
+
+    // inert: a preview is for looking at. Without it a click here would reach the
+    // real card's handlers and flip a real room's settings.
+    return `<div class="evcc-theme-preview-card-slot" id="${THEME_PREVIEW_CARD_SLOT_ID}" inert></div>`;
   };
 
   proto._renderThemePreviewChips = function () {

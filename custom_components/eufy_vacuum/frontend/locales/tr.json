@@ -1162,6 +1162,10 @@
         "desc": "Mini oda kartları profil çiplerini, oda çiplerini ve oda yüzeyi işleyişini bir arada gösterir.",
         "title": "Oda Kartı Önizlemesi"
       },
+      "dashboard_cards": {
+        "title": "Kartınız",
+        "desc": "Kendi Home Assistant panelinizden alınan gerçek bir oda kartı; düzenlediğiniz çerçeve, elde edeceğiniz çerçevenin aynısıdır."
+      },
       "shell": {
         "desc": "Vurgu, başlık ve gövde metni örnekleri bu grubun kontrol ettiği kabuk sesini gösterir.",
         "title": "Kabuk ve Tipografi Önizlemesi"

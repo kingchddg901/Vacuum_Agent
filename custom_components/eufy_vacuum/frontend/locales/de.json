@@ -1858,6 +1858,10 @@
         "desc": "Mini-Raumkarten zeigen Profil-Chips, Raum-Chips und Raumflächen-Behandlung zusammen.",
         "title": "Raumkarten-Vorschau"
       },
+      "dashboard_cards": {
+        "title": "Deine Karte",
+        "desc": "Eine echte Raumkarte aus deinem eigenen Dashboard — der Rahmen, den du gerade bearbeitest, ist genau der Rahmen, den du bekommst."
+      },
       "shell": {
         "desc": "Akzent-, Überschriften- und Fließtextbeispiele zeigen die Hüllen-Stimme, die diese Gruppe steuert.",
         "title": "Vorschau Hülle & Typografie"

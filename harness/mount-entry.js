@@ -1017,7 +1017,18 @@ window.__evcc = {
     file: c.file,
     label: c.label,
     width: c.width,
+    config: c.config,
   })),
+  // The fixture hass.states, exposed for specs that mount the PANEL and need a hass
+  // the standalone cards can actually render from — card-preview.spec.mjs mounts a
+  // real room card inside the theme editor's preview pane.
+  // EXPOSED rather than imported for the same reason everything else here is:
+  // Playwright's Node loader treats a typeless .js as CommonJS and refuses its named
+  // ESM exports, so `import { CARD_STATES } from "../fixtures/cards.js"` inside a spec
+  // fails at collection with "Named export not found" and the suite reports
+  // "No tests found" — a spec that cannot even be collected looks identical to one
+  // that does not exist.
+  cardStates: CARD_STATES,
   version: 1,
   VIEWS,
   VIEW_ORDER,

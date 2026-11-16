@@ -1162,6 +1162,10 @@
         "desc": "Miniaturowe karty pokoi pokazują razem chipy profili, chipy pokoi i sposób renderowania powierzchni pokoju.",
         "title": "Podgląd karty pokoju"
       },
+      "dashboard_cards": {
+        "title": "Twoja karta",
+        "desc": "Prawdziwa karta pokoju z Twojego panelu Home Assistant, więc ramka, którą edytujesz, jest dokładnie tą, którą otrzymasz."
+      },
       "shell": {
         "desc": "Przykłady tekstu akcentu, nagłówka i treści pokazują styl powłoki, którym steruje ta grupa.",
         "title": "Podgląd powłoki i typografii"

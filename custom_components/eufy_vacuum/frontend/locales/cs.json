@@ -1162,6 +1162,10 @@
         "desc": "Mini karty místností zobrazují společně čipy profilů, čipy místností a zpracování povrchu místnosti.",
         "title": "Náhled karty místnosti"
       },
+      "dashboard_cards": {
+        "title": "Vaše karta",
+        "desc": "Skutečná karta místnosti z vašeho vlastního přehledu, takže rámeček, který upravujete, je přesně ten, který dostanete."
+      },
       "shell": {
         "desc": "Příklady akcentu, nadpisu a hlavního textu ukazují hlas rámce, který tato skupina ovládá.",
         "title": "Náhled rámce a typografie"

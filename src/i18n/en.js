@@ -2005,6 +2005,8 @@ export const en = {
   "theme_preview.group.modal.title": "Modal & Overlay Preview",
   "theme_preview.group.queue.desc": "Queue strip, order chips, and drag feedback samples show sequencing and reorder states.",
   "theme_preview.group.queue.title": "Queue & Ordering Preview",
+  "theme_preview.group.dashboard_cards.desc": "A real room card from your own dashboard, so the frame you are editing is the frame you will get.",  // preview description for the Dashboard Cards group: a live mounted card, not a drawing of one
+  "theme_preview.group.dashboard_cards.title": "Your Card",  // preview title for the Dashboard Cards group
   "theme_preview.group.rooms.desc": "Mini room cards expose profile chips, room chips, and room-surface treatment together.",
   "theme_preview.group.rooms.title": "Room Card Preview",
   "theme_preview.group.shell.desc": "Accent, heading, and body text examples show the shell voice this group controls.",

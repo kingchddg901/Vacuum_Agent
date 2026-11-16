@@ -234,6 +234,33 @@ test("[CHP-3] hover does not repaint a selected chip", () => {
   }
 });
 
+test("[CHP-4] the active chip label keeps the card's lighter colour", () => {
+  // THE RED INPUT: change either card's active-label fallback to a bare
+  // var(--evcc-accent), which is the PANEL's token default and what this set took
+  // everywhere else.
+  //
+  // Measured as swatches at the shipped accent #3b82f6 over the card surface #1c2127:
+  //   bare accent                      3.49:1
+  //   accent lightened 10% to white    4.02:1   <- what the cards shipped
+  // Neither passes WCAG AA for normal text (4.5:1); that is an older problem and this
+  // test does not claim to fix it. It stops the number moving the WRONG WAY as a side
+  // effect of wiring chips to tokens — which is exactly what happened, and was invisible
+  // because the before/after render that justified the change showed RESTING chips only.
+  //
+  // A theme setting --evcc-chip-active-text still wins outright on panel and cards, so
+  // only the default differs. [CHP-1] passes either way: the token IS read.
+  for (const [name, src] of CHIPPED) {
+    const rule = src.match(/\.chip\.active \{([\s\S]*?)\}/);
+    assert.ok(rule, `${name}: could not find the .chip.active rule`);
+    assert.match(
+      rule[1].replace(/\s+/g, " "),
+      /color:\s*var\(\s*--evcc-chip-active-text,\s*color-mix\(in srgb, var\(--evcc-accent\) 90%, white\)\s*\)/,
+      `${name}: the active label must fall back to the accent lightened toward white, ` +
+      `not to a bare accent — the bare accent measures 3.49:1 against this background`,
+    );
+  }
+});
+
 test("[CFR-7] room-card registers idempotently and asks for a preview", () => {
   // THE RED INPUT: revert to `window.customCards.push({...})`, or drop `preview: true`.
   // This file ships in BOTH bundles — the panel bundle and the global one injected on

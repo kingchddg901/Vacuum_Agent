@@ -1858,6 +1858,10 @@
         "desc": "Mini-kamerkaarten tonen profielchips, kamerchips en kameroppervlakbehandeling samen.",
         "title": "Voorbeeld kamerkaart"
       },
+      "dashboard_cards": {
+        "title": "Jouw kaart",
+        "desc": "Een echte kamerkaart van je eigen dashboard, dus de rand die je nu bewerkt is precies de rand die je krijgt."
+      },
       "shell": {
         "desc": "Accent-, kop- en bodytekstvoorbeelden tonen de shell-stem die deze groep aanstuurt.",
         "title": "Voorbeeld shell & typografie"

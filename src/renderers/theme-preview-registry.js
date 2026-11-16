@@ -29,6 +29,15 @@
  * ============================================================
  */
 
+/**
+ * The id of the slot the Dashboard Cards preview emits, and that main.js mounts a
+ * real room card into. Declared HERE, beside the registry entry that produces it,
+ * because a renderer and a mounter agreeing on a string by coincidence is precisely
+ * the kind of pair that drifts: a typo on either side yields an empty preview with
+ * no error anywhere. One export, two importers.
+ */
+export const THEME_PREVIEW_CARD_SLOT_ID = "evcc-theme-preview-card-slot";
+
 import { animalEditorGroupLabel, ANIMAL_PARENT_GROUP } from "../theme-tokens/index.js";
 import { userFloorGroupLabel } from "../theme-tokens/user-floors.js";
 import { currentUserMaterials, USER_MATERIAL_EVENT } from "../textures/user-materials.js";
@@ -69,6 +78,15 @@ const STATIC_PREVIEW_ENTRIES = {
     method: "_renderThemePreviewRoomCards",
     titleKey: "theme_preview.group.rooms.title",
     descKey: "theme_preview.group.rooms.desc",
+  },
+  // The only subject that previews a CUSTOM ELEMENT rather than a renderer's output.
+  // Its method returns a slot; main.js mounts a real eufy-room-card into it. See the
+  // long note at _renderThemePreviewDashboardCards for why a facsimile is not an
+  // option here.
+  "Dashboard Cards": {
+    method: "_renderThemePreviewDashboardCards",
+    titleKey: "theme_preview.group.dashboard_cards.title",
+    descKey: "theme_preview.group.dashboard_cards.desc",
   },
   "Floor Textures": {
     method: "_renderThemePreviewFloorTextures",

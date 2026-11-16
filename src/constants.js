@@ -42,6 +42,13 @@
 export const CARD_NAME    = "eufy-vacuum-command-center";
 export const CARD_VERSION = "1.0.6";
 
+/** The room card's custom-element name. Lives here rather than in room-card.js
+ *  because the PANEL also needs it: the theme editor's Dashboard Cards preview
+ *  mounts a real room card, and a second string literal for the same element is
+ *  a replica nothing would catch -- a typo would silently create an unknown
+ *  element and render an empty preview. */
+export const ROOM_CARD_NAME = "eufy-room-card";
+
 /* =========================================================
    INTEGRATION DOMAIN
    ========================================================= */

@@ -1874,6 +1874,10 @@
         "desc": "Las minitarjetas de habitación exponen juntos los chips de perfil, los chips de habitación y el tratamiento de la superficie de la habitación.",
         "title": "Vista previa de tarjeta de habitación"
       },
+      "dashboard_cards": {
+        "title": "Tu tarjeta",
+        "desc": "Una tarjeta de habitación real de tu propio Home Assistant, así que el borde exterior que estás editando es el que obtendrás."
+      },
       "shell": {
         "desc": "Los ejemplos de texto de acento, encabezado y cuerpo muestran la voz del armazón que controla este grupo.",
         "title": "Vista previa de armazón y tipografía"

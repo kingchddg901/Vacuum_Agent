@@ -1873,6 +1873,10 @@
         "desc": "Mini cartões de divisão expõem em conjunto chips de perfil, chips de divisão e tratamento da superfície da divisão.",
         "title": "Pré-visualização de Cartão de Divisão"
       },
+      "dashboard_cards": {
+        "title": "O Seu Cartão",
+        "desc": "Um cartão de divisão real do seu próprio Home Assistant, por isso a moldura que está a editar é a moldura que vai obter."
+      },
       "shell": {
         "desc": "Exemplos de texto de destaque, título e corpo mostram a voz do invólucro que este grupo controla.",
         "title": "Pré-visualização de Invólucro e Tipografia"

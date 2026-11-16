@@ -2684,6 +2684,10 @@
         "desc": "Queue strip, order chips, and drag feedback samples show sequencing and reorder states.",
         "title": "Queue & Ordering Preview"
       },
+      "dashboard_cards": {
+        "desc": "A real room card from your own dashboard, so the frame you are editing is the frame you will get.",  // preview description for the Dashboard Cards group: a live mounted card, not a drawing of one
+        "title": "Your Card"  // preview title for the Dashboard Cards group
+      },
       "rooms": {
         "desc": "Mini room cards expose profile chips, room chips, and room-surface treatment together.",
         "title": "Room Card Preview"

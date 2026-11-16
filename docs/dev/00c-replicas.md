@@ -561,10 +561,29 @@ specificity as `.chip.active` and came later in both files — so hovering a *se
 chip repainted it with the neutral hover background and it read as deselected under the
 cursor. The canonical rule has always guarded this with `:not(.active)`.
 
+**One fallback does NOT take the panel's default, and the exception is the interesting
+part.** For the ACTIVE label the token default is a bare `var(--evcc-accent)` — accent
+text on an 18%-accent ground. Measured as swatches at the shipped accent `#3b82f6` over
+the card surface `#1c2127`:
+
+| active label colour | contrast |
+|---|---|
+| bare accent (the panel's token default) | **3.49:1** |
+| accent lightened 10% toward white (what the cards shipped) | **4.02:1** |
+
+Neither passes WCAG AA for normal text (4.5:1) — that is an older, separate problem. But
+taking parity would have traded away half a point of contrast on the one chip a user
+reads to confirm what they just selected, as a side effect of a change justified by a
+geometry comparison. **The before/after render that justified the wiring showed RESTING
+chips only**, so this moved unseen and unreported until the preview was rendered with a
+theme that pushed the same token to 1.68:1 and made the problem visible by exaggerating
+it. A theme setting `--evcc-chip-active-text` still wins outright on panel and cards, so
+themed behaviour is identical and only the default differs.
+
 **Declared at** `src/room-card.js`, the copy whose comment carries the reasoning. Pinned
-by `[CHP-1..3]` in `src/cards/card-frame.test.mjs`: `[CHP-1]` asserts all fifteen token
+by `[CHP-1..4]` in `src/cards/card-frame.test.mjs`: `[CHP-1]` asserts all fifteen token
 reads in both copies, `[CHP-2]` catches a literal left *beside* a `var()` (which `[CHP-1]`
-passes on), and `[CHP-3]` the hover guard.
+passes on), `[CHP-3]` the hover guard, and `[CHP-4]` the active-label exception above.
 
 Recorded 2026-11-16, at the fix.
 

@@ -84,6 +84,25 @@ export const themePreviewStyles = `
     flex-direction: column;
   }
 
+  /* The Dashboard Cards slot — a REAL eufy-room-card is mounted into this by
+     main.js::_maybeMountThemePreviewCard, not drawn. Two things it needs and the
+     other preview subjects do not:
+       1. width: 100% on the child. The card sizes itself for a dashboard column
+          (its own grid options ask for ~343px); the preview column is 320px, so
+          without this it overflows the pane and clips its own rounded corner.
+       2. a stacking context of its own. The card draws an <ha-card> with its own
+          shadow, and the pane's header sits directly above it. */
+  .evcc-theme-preview-card-slot {
+    display: block;
+    width: 100%;
+    isolation: isolate;
+  }
+
+  .evcc-theme-preview-card-slot > * {
+    display: block;
+    width: 100%;
+  }
+
   .evcc-theme-preview-card,
   .evcc-theme-preview-learning-panel,
   .evcc-theme-preview-room-card {

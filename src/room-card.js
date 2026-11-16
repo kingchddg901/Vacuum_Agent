@@ -17,7 +17,8 @@ import { roomSuggestion } from "./cards/card-suggestions.js";
 // wanted to paint variables.
 import { applyVaThemeToCard } from "./styles/card-theme.js";
 
-const ROOM_CARD_NAME   = "eufy-room-card";
+import { ROOM_CARD_NAME } from "./constants.js";
+
 const ROOM_CARD_EDITOR = "eufy-room-card-editor";
 
 /* ================================================================
@@ -594,10 +595,24 @@ class EufyRoomCard extends HTMLElement {
           border-color: var(--evcc-chip-hover-border, var(--evcc-border-strong));
         }
 
+        /* THE ONE PLACE THIS SET DOES NOT TAKE THE PANEL'S DEFAULT, and the reason.
+           Everywhere else the fallbacks are the --evcc-chip-* token defaults, so one
+           token moves panel and cards identically. For the ACTIVE LABEL that default is
+           a bare var(--evcc-accent) -- accent text on an 18%-accent ground -- which
+           measures 3.49:1. The colour this card shipped is the accent lightened 10%
+           toward white, 4.02:1. Taking parity here would have quietly traded away half
+           a point of contrast on the one chip a user is reading to confirm what they
+           selected. Measured as swatches at the shipped accent #3b82f6 over #1c2127.
+           NEITHER passes WCAG AA for normal text (4.5:1) -- that is a separate, older
+           problem and this comment is not claiming otherwise. What it refuses is making
+           it worse by accident. A theme that sets --evcc-chip-active-text still wins
+           outright, on the panel and on both cards, so themed behaviour is unchanged
+           and only the default differs. Pinned by [CHP-4]. */
         .chip.active {
           background:   var(--evcc-chip-active-bg,
                           color-mix(in srgb, var(--evcc-accent) 18%, transparent));
-          color:        var(--evcc-chip-active-text, var(--evcc-accent));
+          color:        var(--evcc-chip-active-text,
+                          color-mix(in srgb, var(--evcc-accent) 90%, white));
           border-color: var(--evcc-chip-active-border,
                           color-mix(in srgb, var(--evcc-accent) 40%, transparent));
           font-weight: 600;
