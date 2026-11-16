@@ -212,6 +212,18 @@ of your Home Assistant theme. It is per card, so you can mix — a themed room c
 Dashboard Mode card that still matches your dashboard. Unticking it hands the card straight
 back to the HA theme.
 
+**A card follows the vacuum's saved theme, not a per-device pin.** In the panel you can pin
+a theme to *this browser only* — that pin is stored locally and does not travel. Cards do
+not read it. A ticked card always wears whichever theme is **saved** for its vacuum, so the
+same dashboard looks the same on your phone and your laptop, while the panel beside it may
+not. That is deliberate: a card lives on a dashboard other people see, and a per-browser
+preference is not something it should inherit.
+
+The practical consequence is worth knowing if you are mid-edit. Pinning a different theme
+in the panel to try it out changes the panel and leaves every ticked card on the saved one,
+so the two will disagree until you save. Within the theme editor the cards do follow your
+unsaved edits live — it is only the per-device *pin* they ignore.
+
 ## Panel or cards — which?
 
 They're complementary, and you can use both:

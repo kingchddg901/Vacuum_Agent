@@ -34,6 +34,26 @@ dashboard and matching its host is usually right.
 - **Turning it off repaints with an empty map**, it does not return early. The writer
   removes every registry token it is not handed, so the disabled call is what hands the
   card back to the HA theme. Pinned by `[CVT-5]`.
+- **A card resolves the BACKEND active theme, never the per-device pin**, and the mechanism
+  is worth stating because the code reads as though it might. `resolveVaTokens`
+  (`styles/card-theme.js`) builds its state as `Object.create(themeProto())` and **never
+  sets `config`**, then calls `setBackendThemeState({ active_theme_id: ct.theme_id, … })`
+  straight from the sensor. So `effectiveActiveThemeId`'s device-pin branch is not on this
+  path at all — and even if it were, `_deviceThemeKey()` is
+  `` `evcc_theme_device_${this.config?.vacuum_entity_id ?? "default"}` `` (`state/theme.js`),
+  which on a configless state resolves to `evcc_theme_device_default`: a key nothing ever
+  writes. Two independent reasons, one outcome.
+
+  That divergence is **correct, not a gap**. A browser-local pin is one person's
+  preference; a card sits on a dashboard other people open, so it should wear what the
+  vacuum is actually set to. The user-facing half is written down in
+  [the card guide](../../user-guide/20-dashboard-and-room-cards.md#or-carry-the-vacuum-agent-theme-across).
+
+  What DOES ride along is the unsaved `working_draft`, taken from the same sensor — so a
+  ticked card follows the theme editor live while you are editing, and ignores only the
+  pin. The theme editor's own Dashboard Cards preview is a third path again: it mounts a
+  real card and has the resolved tokens written onto it inline, because inheritance alone
+  cannot reach a card that declares the same tokens in its own shadow root.
 
 ### Why `styles/apply-tokens.js` exists
 
