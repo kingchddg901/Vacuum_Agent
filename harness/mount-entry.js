@@ -36,6 +36,7 @@ import {
   VIEW_ORDER,
 } from "../src/render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES, applyDynamicTheme } from "../src/styles/index.js";
+import { applyThemeToCard } from "../src/styles/apply-theme.js";
 import { registerLocale, applyDir } from "../src/i18n/index.js";
 import { ensureFontFacesInDocument } from "../src/styles/fonts.js";
 import { en } from "../src/i18n/en.js";
@@ -1029,6 +1030,13 @@ window.__evcc = {
   // "No tests found" — a spec that cannot even be collected looks identical to one
   // that does not exist.
   cardStates: CARD_STATES,
+
+  // The per-keystroke theme writer. Exposed so a spec can drive the path the 15 editor
+  // controls use -- draft, then applyThemeToCard, with NO re-render. Without this, a
+  // spec can only exercise the render path, and the two halves of the preview's token
+  // bridge are written in different files for different reasons: a test that covers
+  // only one passes while the other is deleted.
+  applyThemeToCard,
   version: 1,
   VIEWS,
   VIEW_ORDER,

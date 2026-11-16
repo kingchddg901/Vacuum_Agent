@@ -14,6 +14,9 @@ import { buildRenderContext, renderHeader, renderView, isViewAvailable, VIEW_ORD
 // anchor: CNG921VV
 import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
+// From apply-tokens.js, NOT styles/index.js -- the note at apply-theme.js:24 records
+// that reaching this writer through index.js costs +443,485 bytes of stylesheets.
+import { applyDynamicTheme }                  from "./styles/apply-tokens.js";
 import { translate, resolveLang, loadLocale, ensureLocalesLoaded, localeSource, listBundledLocales, localeStatus, applyDir } from "./i18n/index.js";
 import { getStoredLang, setStoredLang }     from "./i18n/lang-store.js";
 import { FONT_DEFAULT, getStoredFont, setStoredFont, registerRuntimeFontSupport } from "./i18n/font-store.js";
@@ -1827,11 +1830,17 @@ class EufyVacuumCommandCenter extends HTMLElement {
    * a fresh card on every keystroke would re-run setConfig and its one-shot data
    * fetch, and the preview would flicker while a slider moved.
    *
-   * NO va_theme. The card reads --evcc-* by inheritance from this host, and every
-   * editor control writes the resolved draft inline here via applyThemeToCard — so
-   * the preview tracks the editor on the same frame. Setting va_theme would route it
-   * through the theme SENSOR instead, which only updates once a draft is SAVED, and
-   * the preview would lag by a save.
+   * HOW IT TRACKS THE EDITOR, and the part that is NOT free. applyThemeToCard writes
+   * the resolved draft inline onto this mounted card as a third target, beside the
+   * panel host and the modal host — see the note at styles/apply-theme.js. Inheritance
+   * alone does NOT work here: the card injects foundationTokens into its own shadow
+   * root, which declares ~425 --evcc-* tokens, and a declaration in the element's own
+   * tree beats anything inherited from this host. Measured — the preview originally
+   * tracked only the two FRAME tokens, because those are deliberately undeclared, and
+   * ignored every other token including the chips.
+   *
+   * NO va_theme. That path resolves from the theme SENSOR, which updates only once a
+   * draft is SAVED, so the preview would lag by a save.
    */
   _maybeMountThemePreviewCard() {
     const slot = this.shadowRoot?.getElementById(THEME_PREVIEW_CARD_SLOT_ID);
@@ -1857,6 +1866,20 @@ class EufyVacuumCommandCenter extends HTMLElement {
     }
     if (this._themePreviewCardEl.parentNode !== slot) slot.appendChild(this._themePreviewCardEl);
     this._themePreviewCardEl.hass = this._hass;
+
+    // Write the resolved tokens inline on the mounted card. TWO paths need covering and
+    // neither is sufficient alone, which is why this looks redundant with the third
+    // target in styles/apply-theme.js and is not:
+    //   - KEYSTROKE, no re-render: the 15 editor controls call applyThemeToCard directly.
+    //     The card is attached throughout, so that target fires and this one never runs.
+    //   - RENDER: applyThemeToCard runs at the TOP of _render (main.js:1687) while this
+    //     hook runs ~118 lines later (:1805), AFTER the innerHTML replacement that
+    //     destroys the old slot. At apply time the card is detached, its
+    //     shadowRoot.contains check is false, and the layer is skipped -- measured: the
+    //     panel host took `20px 40px` and the card's inline style stayed empty.
+    // Applying here, immediately after re-parenting, is the half that covers a render.
+    this._themePreviewCardEl.style.cssText = "";   // drop the previous theme's keys first
+    applyDynamicTheme(this._themePreviewCardEl, this._state.resolvedTheme());
   }
 
   /**

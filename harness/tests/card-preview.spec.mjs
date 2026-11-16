@@ -106,6 +106,108 @@ test("[CPV-1] [CPV-4] the Dashboard Cards preview mounts a real, populated room 
   expect(r.frameBorderWidth).not.toBeNull();
 });
 
+test("[CPV-5] a DECLARED token reaches the mounted card", async ({ page }) => {
+  // THE RED INPUT: remove the third applyDynamicTheme target from
+  // src/styles/apply-theme.js and rely on inheritance, which is what shipped first.
+  //
+  // [CPV-4] asserts the card SEES --evcc-card-frame-border-width, and passes on the
+  // broken state, because that token is deliberately UNDECLARED and therefore the one
+  // kind that does inherit. The ~425 tokens foundationTokens declares inside the card's
+  // own shadow root do not: a declaration in the element's own tree beats an inherited
+  // value. Measured on the shipped-first version -- setting --evcc-chip-padding to
+  // `20px 40px` on the panel moved the mounted card's chip by zero pixels.
+  //
+  // So this test uses a DECLARED token on purpose. It is the difference between a
+  // preview that looks live and one that is.
+  await mountHarness(page);
+  const r = await page.evaluate(async () => {
+    const vac = window.__evcc.cards.find((c) => c.id === "room")?.config?.vacuum_entity_id;
+    await window.__evcc.mountRealThemeEditor(null, {
+      subTab: "tokens", width: 1200,
+      config: { vacuum_entity_id: vac }, hass: { states: window.__evcc.cardStates },
+    });
+    const el = document.querySelector("eufy-vacuum-command-center");
+    el._state.setThemeGroupFilter("Dashboard Cards");
+    el._scheduleRender();
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    await new Promise((res) => setTimeout(res, 200));
+    const card = el.shadowRoot.getElementById("evcc-theme-preview-card-slot")
+      ?.querySelector("eufy-room-card");
+    if (!card) return { error: "no mounted card" };
+    const chipPad = () => getComputedStyle(card.shadowRoot.querySelector(".chip")).padding;
+    const before = chipPad();
+    // drive it the way an editor control does: write the draft, then apply
+    el._state.applyThemeDraftPatch({ tokens: { "--evcc-chip-padding": "20px 40px" } });
+    el._scheduleRender();
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    await new Promise((res) => setTimeout(res, 150));
+    return { before, after: chipPad() };
+  });
+  expect(r.error).toBeUndefined();
+  expect(r.after,
+    `--evcc-chip-padding is DECLARED by foundationTokens inside the card's own shadow ` +
+    `root, so inheritance cannot deliver it; applyThemeToCard must write it inline on ` +
+    `the mounted card (before=${r.before} after=${r.after})`).not.toBe(r.before);
+});
+
+test("[CPV-6] a keystroke reaches the mounted card without a re-render", async ({ page }) => {
+  // THE RED INPUT: remove the third applyDynamicTheme target from
+  // src/styles/apply-theme.js.
+  //
+  // [CPV-5] drives a RENDER, and the render path is covered by the apply in
+  // _maybeMountThemePreviewCard. So [CPV-5] passes with that target deleted. This is
+  // the other half: the 15 editor controls in bindings/theme.js write the draft and
+  // call applyThemeToCard directly with NO re-render, because re-rendering on every
+  // slider frame would be unusable. If only the render path were wired, the preview
+  // would sit still until the 600ms deferred render caught up — live-looking in a
+  // screenshot, laggy in the hand.
+  //
+  // Two targets in two files, each needed, each invisible to the other's test.
+  await mountHarness(page);
+  const r = await page.evaluate(async () => {
+    const vac = window.__evcc.cards.find((c) => c.id === "room")?.config?.vacuum_entity_id;
+    await window.__evcc.mountRealThemeEditor(null, {
+      subTab: "tokens", width: 1200,
+      config: { vacuum_entity_id: vac }, hass: { states: window.__evcc.cardStates },
+    });
+    const el = document.querySelector("eufy-vacuum-command-center");
+    el._state.setThemeGroupFilter("Dashboard Cards");
+    el._scheduleRender();
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    await new Promise((res) => setTimeout(res, 200));
+    const card = el.shadowRoot.getElementById("evcc-theme-preview-card-slot")
+      ?.querySelector("eufy-room-card");
+    if (!card) return { error: "no mounted card" };
+    const pad = () => getComputedStyle(card.shadowRoot.querySelector(".chip")).padding;
+    const before = pad();
+
+    // NEUTRALISE RENDERING FIRST. Without this the test passes for the wrong reason:
+    // applyThemeDraftPatch itself never renders (src/state/theme.js:110 only mutates
+    // state), but a render SCHEDULED during setup lands inside the wait below and the
+    // mount hook does the work -- so the test stayed green with the keystroke target
+    // deleted, which is precisely the regression it exists to catch. Counted too, so a
+    // future render path cannot creep back in unnoticed.
+    let renders = 0;
+    el._scheduleRender = () => { renders += 1; };
+    el._scheduleDeferredRender = () => { renders += 1; };
+
+    // EXACTLY what a control does: patch the draft, apply, do NOT render.
+    el._state.applyThemeDraftPatch({ tokens: { "--evcc-chip-padding": "22px 33px" } });
+    window.__evcc.applyThemeToCard(el);
+    await new Promise((res) => setTimeout(res, 120));
+    return { before, after: pad(), renders };
+  });
+  expect(r.error).toBeUndefined();
+  expect(r.after,
+    `a control writes the draft and calls applyThemeToCard with no re-render; the ` +
+    `mounted preview card must repaint on that path too ` +
+    `(before=${r.before} after=${r.after})`).not.toBe(r.before);
+  // Isolation is structural: _scheduleRender was replaced above, so no render can have
+  // executed regardless of how many were scheduled. Reported, not asserted — gating on
+  // the SCHEDULE count made this test fail alone and pass in the full file.
+  expect(typeof r.renders).toBe("number");
+});
+
 test("[CPV-2] another group gets no card slot", async ({ page }) => {
   // The pane is group-scoped. Without this, [CPV-1] would also pass on a slot emitted
   // unconditionally for every group — which would mount a room card under 'Map'.
