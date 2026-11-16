@@ -133,7 +133,9 @@ def test_mpcs_2_sample_m_to_scale_is_the_renderers_arithmetic(mpc):
     # The reference m/px is 5 cm per cell at the commonest supersample, S=4.
     assert mpc.REF_M_PER_CANVAS_PX == pytest.approx(0.05 / 4)
 
-    # An 8 ft slab (8 x 304.8 mm) on a 5 cm/cell map supersampled 4x.
+    # A 2.4384 m span (8 x 304.8 mm) on a 5 cm/cell map supersampled 4x. The VALUE is
+    # arbitrary here -- this test is the arithmetic, and any span round-trips. It is NOT
+    # a claim about what Material Author publishes: that is 1.524 (see [MPCS-6]).
     assert mpc.sample_m_to_scale(2.4384) == pytest.approx(0.09525)
     # Explicit m/px overrides the reference, so the same size resolves differently per map.
     assert mpc.sample_m_to_scale(2.4384, 0.05 / 3) == pytest.approx(0.0714375)
@@ -194,8 +196,21 @@ def test_mpcs_5_a_raster_scale_published_as_a_sample_m_is_caught(mpc):
 @pytest.mark.parametrize(
     ("sample_m", "what"),
     [
-        (1.524, "a 5 ft board -- the case that warned when S=1 was swept"),
-        (2.4384, "an 8 ft slab, the Material Author frame width"),
+        # 1.524 is ALSO what Material Author publishes, as of its 78b662d. Its mask is
+        # `viewSquare`, the largest centred square of the 8 ft frame, which keeps H =
+        # 0.625 of it -- so the mask depicts 5 x 5 ft, not 8. Verified on the live box:
+        # /config/eufy_vacuum/materials/ma-stone-wood-test reads sample_m 1.524 and
+        # resolves scale 0.059531 at S=4, 0.044648 at S=3.
+        (1.524, "a 5 ft board -- and what MA publishes; the case that warned when S=1 was swept"),
+        # 2.4384 is the FRAME width, which is NOT what the mask spans. MA published it as
+        # sample_m for one day (shipped 7ef7b67, corrected 78b662d) -- a figure 1/0.625 =
+        # 1.6x too large. It stays here as a second size, and as the standing reminder
+        # that THIS GATE CANNOT CATCH THAT CLASS OF ERROR: both rows below return [], so
+        # the wrong span cleared every clamp exactly as the right one does. A plausible
+        # metre figure is indistinguishable from a correct one here; the only symptom was
+        # a floor that looked coarse, which is indistinguishable from taste. The gate was
+        # asked the right question and handed the wrong input -- see the module docstring.
+        (2.4384, "an 8 ft span -- the MA frame width, which is not what its mask spans"),
         (1.2, "a 1.2 m sheet of four 30 cm tiles"),
         (25.0, "a sheet at the top of the safe band -- 25.6 m at S=8 is the ceiling"),
     ],
