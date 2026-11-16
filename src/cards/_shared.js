@@ -285,6 +285,29 @@ export function stripNull(obj) {
   return Object.fromEntries(Object.entries(obj ?? {}).filter(([, v]) => v != null));
 }
 
+/**
+ * Is an optional card section switched on?
+ *
+ * The `show_*` family (`show_profiles`, `show_scenes`, `show_dock`, `show_map`,
+ * `show_companion`) all default ON and are all written by the editor as a plain
+ * boolean, so the test is `!== false` and NOT truthiness: a config saved before an
+ * option existed carries no key at all, and must keep behaving exactly as it did.
+ * `!config.show_x` would hide the section on every one of those older configs.
+ *
+ * WHY THIS IS A FUNCTION AND NOT FOUR INLINE COMPARISONS. It is deliberately NOT a
+ * sweep of the existing four — those are one comparison each, at one site each, and
+ * rewriting working render paths to route through a helper buys nothing. It exists
+ * because `show_companion` is asked TWICE, in two different places that must agree
+ * (the control row and the sprite, see vacuum-map-host.js), and because the map host
+ * cannot be imported outside a browser — it extends HTMLElement at module scope and
+ * calls customElements.define, so neither node nor the Playwright harness bundle can
+ * load it (harness/build.mjs externalises it by served URL). Putting the predicate
+ * here is what gives it a test at all.
+ */
+export function cardSectionEnabled(config, key) {
+  return (config ?? {})[key] !== false;
+}
+
 /* =========================================================
    LANGUAGE CONTROL — a card-native globe + locale menu, shared by both standalone
    cards. The CHOICE persists per-user via getStoredLang/setStoredLang (the same

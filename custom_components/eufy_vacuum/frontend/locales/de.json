@@ -2815,6 +2815,7 @@
     "editor_title_placeholder": "Leer lassen, um den Saugroboternamen zu verwenden",
     "editor_sections_label": "Abschnitte",
     "editor_sections_hint": "Blende einen Abschnitt aus, um die Karte kompakt zu halten; Abschnitte werden auch ausgeblendet, wenn der Saugroboter sie nicht unterstützt.",
+    "editor_show_companion": "Begleittier anzeigen",
     "editor_show_dock": "Stationsschaltfläche anzeigen",
     "editor_show_map": "Karte anzeigen (Zonen zeichnen)",
     "editor_show_profiles": "Gespeicherte Profile anzeigen",

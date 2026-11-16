@@ -2274,6 +2274,7 @@
     "dock": "İstasyona Dön",
     "editor_sections_hint": "Kartı derli toplu tutmak için bir bölümü gizleyin; robot süpürge desteklemediğinde bölümler de gizlenir.",
     "editor_sections_label": "Bölümler",
+    "editor_show_companion": "Eşlik eden hayvanı göster",
     "editor_show_dock": "İstasyon düğmesini göster",
     "editor_show_map": "Haritayı göster (bölge çiz)",
     "editor_show_profiles": "Kaydedilen profilleri göster",

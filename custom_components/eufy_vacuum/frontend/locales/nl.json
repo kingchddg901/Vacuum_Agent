@@ -2815,6 +2815,7 @@
     "editor_title_placeholder": "Laat leeg om de stofzuigernaam te gebruiken",
     "editor_sections_label": "Secties",
     "editor_sections_hint": "Verberg een sectie om de kaart compact te houden; secties worden ook verborgen als de stofzuiger ze niet ondersteunt.",
+    "editor_show_companion": "Metgezeldier tonen",
     "editor_show_dock": "Dockknop tonen",
     "editor_show_map": "Kaart tonen (zones tekenen)",
     "editor_show_profiles": "Opgeslagen profielen tonen",

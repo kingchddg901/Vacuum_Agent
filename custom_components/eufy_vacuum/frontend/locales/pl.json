@@ -2277,6 +2277,7 @@
     "dock": "Do stacji",
     "editor_sections_hint": "Ukryj sekcję, aby karta była kompaktowa; sekcje ukrywają się także, gdy odkurzacz ich nie obsługuje.",
     "editor_sections_label": "Sekcje",
+    "editor_show_companion": "Pokaż zwierzę towarzyszące",
     "editor_show_dock": "Pokaż przycisk stacji dokującej",
     "editor_show_map": "Pokaż mapę (rysowanie stref)",
     "editor_show_profiles": "Pokaż zapisane profile",

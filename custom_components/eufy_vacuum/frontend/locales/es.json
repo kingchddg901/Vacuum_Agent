@@ -2831,6 +2831,7 @@
     "editor_title_placeholder": "Déjalo en blanco para usar el nombre del aspirador",
     "editor_sections_label": "Secciones",
     "editor_sections_hint": "Oculta una sección para mantener la tarjeta compacta; las secciones también se ocultan cuando el aspirador no las admite.",
+    "editor_show_companion": "Mostrar animal de compañía",
     "editor_show_dock": "Mostrar botón de base",
     "editor_show_map": "Mostrar mapa (dibujar zonas)",
     "editor_show_profiles": "Mostrar perfiles guardados",

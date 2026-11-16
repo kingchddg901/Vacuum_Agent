@@ -1327,6 +1327,7 @@ export const en = {
   "vacuum_card.dock": "Dock",  // button that sends the vacuum back to its charging dock (return_to_base), not a noun
   "vacuum_card.editor_sections_hint": "Hide a section to keep the card compact; sections also hide when the vacuum doesn't support them.",
   "vacuum_card.editor_sections_label": "Sections",  // editor group label for the show/hide toggles below it
+  "vacuum_card.editor_show_companion": "Show companion animal",  // toggle: show the map's companion animal + its control row (issue #82)
   "vacuum_card.editor_show_dock": "Show dock button",
   "vacuum_card.editor_show_map": "Show map (draw zones)",  // toggle: show the live-map zone-draw section
   "vacuum_card.editor_show_profiles": "Show saved profiles",  // toggle: show the saved run-profiles dropdown

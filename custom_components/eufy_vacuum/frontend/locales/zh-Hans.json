@@ -2805,6 +2805,7 @@
     "dock": "返回基站",
     "editor_sections_hint": "隐藏某个区块可让卡片更紧凑；当扫地机器人不支持时，区块也会自动隐藏。",
     "editor_sections_label": "区块",
+    "editor_show_companion": "显示动物伙伴",
     "editor_show_dock": "显示返回基站按钮",
     "editor_show_map": "显示地图（绘制区域）",
     "editor_show_profiles": "显示已保存方案",

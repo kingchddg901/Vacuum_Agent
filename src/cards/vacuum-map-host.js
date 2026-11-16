@@ -20,6 +20,7 @@ import { VacuumCardRenderers } from "../renderers/index.js";
 import { VacuumCardBindings } from "../bindings/index.js";
 import { VacuumCardActions } from "../actions/index.js";
 import { applyCardDomHelpers } from "../bindings/core.js";
+import { cardSectionEnabled } from "./_shared.js";
 import { VIEWS } from "../render-cycle.js";
 import { mapStyles } from "../styles/map.js";
 // ISSUE #65 -- the embed defines NO --evcc-* of its own, so every var() in
@@ -112,6 +113,15 @@ class EufyVacuumMap extends HTMLElement {
     }
   }
 
+  // ISSUE #82 -- the ONE place the card's companion option is read. The reporter's
+  // ask was literal: the 2.7.0 caret folds the row but the caret itself still takes a
+  // line, so "hide that totally" needs the row GONE, not collapsed.
+  //
+  // Reads `show_companion` through the shared `show_*` predicate rather than its own
+  // comparison, because getting the default wrong here is invisible: `!show_companion`
+  // would hide the companion on every dashboard saved before this option shipped.
+  _companionEnabled() { return cardSectionEnabled(this._config, "show_companion"); }
+
   _initStack() {
     if (this._state || !this._config) return;
     this._state = new VacuumCardState(this._hass, this._config);
@@ -129,6 +139,28 @@ class EufyVacuumMap extends HTMLElement {
     // (issue #35). supportsVaRender still gates whether the render actually applies.
     this._state.useVaRender = () => true;
     this._state.setUseVaRender = () => {};
+    // ISSUE #82 -- the SPRITE half of `show_companion: false`. The CONTROL-ROW half is
+    // the _companionEnabled() gate in _render. BOTH are needed and NEITHER is
+    // sufficient, because the paw button that hides the sprite lives INSIDE the row
+    // being hidden: gate only the row and the reporter is left with an animal walking
+    // across the map and nothing on the card that can stop it. Gate only the sprite and
+    // the row they asked about is still there, taking the space they complained about.
+    //
+    // WRAPPED, NOT REPLACED. With the option on (or absent -- the default) the user's
+    // own paw toggle still decides, so this is an AND, not a new source of truth. It
+    // also carries follow-robot for free: renderers/map.js:521 ANDs _followActive with
+    // mapAnimalEnabled, so a hidden companion cannot keep hijacking the position dot.
+    //
+    // READ AT CALL TIME, never latched. `set config` reuses this same state object, so
+    // a boolean captured here would answer with the FIRST config for the element's whole
+    // life -- turning the option off in the editor would do nothing until a reload.
+    //
+    // SAME DISCIPLINE AS useVaRender ABOVE, with one deliberate difference: the setter
+    // is left alone. setMapAnimalEnabled writes the SHARED evcc_animal_enabled_<vac>
+    // key, and it is only reachable from the row -- which is gone -- so a card that
+    // merely hid its companion can never overwrite the panel's own choice.
+    const baseAnimalEnabled = this._state.mapAnimalEnabled.bind(this._state);
+    this._state.mapAnimalEnabled = () => this._companionEnabled() && baseAnimalEnabled();
   }
 
   /* =========================================================
@@ -267,7 +299,12 @@ class EufyVacuumMap extends HTMLElement {
       //   - the ZONE panel (settings + drawn-zone list + Clean/Clear) when draw mode is on,
       //   - the render-LAYERS panel (VA-render toggle + overlay visibility) when overlays align.
       // Same gates + signatures as renderers/rooms.js; _bindMap (below) wires both.
-      const mascot = (state.isMapViewActive?.() && typeof r._renderMapAnimalControls === "function")
+      // ISSUE #82 -- `_companionEnabled()` is the CONTROL-ROW half; the sprite half is
+      // the mapAnimalEnabled wrapper in _initStack. OMITTED here, not display:none'd
+      // like the caret collapse in renderers/map.js: a collapsed row still occupies a
+      // line, which is the entire thing the reporter filed about.
+      const mascot = (state.isMapViewActive?.() && this._companionEnabled()
+                      && typeof r._renderMapAnimalControls === "function")
         ? `<div class="map-mascot-bar">${r._renderMapAnimalControls(state)}</div>`
         : "";
       const zonePanel =

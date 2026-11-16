@@ -2805,6 +2805,7 @@
     "dock": "返回基站",
     "editor_sections_hint": "隱藏區塊可讓卡片保持精簡；當掃地機不支援時區塊也會自動隱藏。",
     "editor_sections_label": "區塊",
+    "editor_show_companion": "顯示陪伴動物",
     "editor_show_dock": "顯示返回基站按鈕",
     "editor_show_map": "顯示地圖（繪製區域）",
     "editor_show_profiles": "顯示已儲存的設定檔",

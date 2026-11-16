@@ -2818,6 +2818,7 @@
     "editor_title_placeholder": "Lascia vuoto per usare il nome dell'aspirapolvere",
     "editor_sections_label": "Sezioni",
     "editor_sections_hint": "Nascondi una sezione per mantenere compatta la scheda; le sezioni si nascondono anche quando l'aspirapolvere non le supporta.",
+    "editor_show_companion": "Mostra animale da compagnia",
     "editor_show_dock": "Mostra pulsante base",
     "editor_show_map": "Mostra mappa (disegna zone)",
     "editor_show_profiles": "Mostra profili salvati",

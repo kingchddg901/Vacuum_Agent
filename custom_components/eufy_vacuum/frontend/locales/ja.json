@@ -2805,6 +2805,7 @@
     "dock": "ドックへ帰還",
     "editor_sections_hint": "セクションを非表示にするとカードをコンパクトに保てます。ロボット掃除機が対応していないセクションも非表示になります。",
     "editor_sections_label": "セクション",
+    "editor_show_companion": "コンパニオンアニマルを表示",
     "editor_show_dock": "ドックボタンを表示",
     "editor_show_map": "マップを表示（ゾーンを描画）",
     "editor_show_profiles": "保存済みプロファイルを表示",

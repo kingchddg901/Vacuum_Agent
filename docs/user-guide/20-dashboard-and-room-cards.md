@@ -81,6 +81,8 @@ show_map: true               # default true
 show_profiles: true          # default true (hidden if your vacuum has no room profiles)
 show_scenes: true            # default true (Eufy only; auto-hidden otherwise)
 show_dock: true              # default true
+show_companion: true         # default true — the companion animal on the map, and its
+                             # row of controls. Set false to remove both completely.
 ```
 
 !!! info "Build it, then Start it"

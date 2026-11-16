@@ -2950,6 +2950,7 @@
     "dock": "עגינה",
     "editor_sections_hint": "הסתר מקטע כדי לשמור על הכרטיס קומפקטי; מקטעים גם מוסתרים כאשר השואב אינו תומך בהם.",
     "editor_sections_label": "מקטעים",
+    "editor_show_companion": "הצג חיית מלווה",
     "editor_show_dock": "הצג כפתור עגינה",
     "editor_show_map": "הצג מפה (ציור אזורים)",
     "editor_show_profiles": "הצג פרופילים שמורים",

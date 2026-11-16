@@ -2805,6 +2805,7 @@
     "dock": "도크 복귀",
     "editor_sections_hint": "카드를 간결하게 유지하려면 섹션을 숨기세요. 로봇청소기가 지원하지 않는 섹션은 자동으로 숨겨집니다.",
     "editor_sections_label": "섹션",
+    "editor_show_companion": "반려동물 표시",
     "editor_show_dock": "도크 버튼 표시",
     "editor_show_map": "지도 표시 (구역 그리기)",
     "editor_show_profiles": "저장된 프로파일 표시",

@@ -2276,6 +2276,7 @@
     "dock": "Do doku",
     "editor_sections_hint": "Skryjte sekci, aby karta zůstala kompaktní; sekce se skryjí také, když je vysavač nepodporuje.",
     "editor_sections_label": "Sekce",
+    "editor_show_companion": "Zobrazit zvířecího společníka",
     "editor_show_dock": "Zobrazit tlačítko doku",
     "editor_show_map": "Zobrazit mapu (kreslení zón)",
     "editor_show_profiles": "Zobrazit uložené profily",

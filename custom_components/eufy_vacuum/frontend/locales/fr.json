@@ -2832,6 +2832,7 @@
     "editor_title_placeholder": "Laissez vide pour utiliser le nom de l'aspirateur",
     "editor_sections_label": "Sections",
     "editor_sections_hint": "Masquez une section pour garder la carte compacte ; les sections se masquent aussi quand l'aspirateur ne les prend pas en charge.",
+    "editor_show_companion": "Afficher l'animal de compagnie",
     "editor_show_dock": "Afficher le bouton Station",
     "editor_show_map": "Afficher la carte (dessiner des zones)",
     "editor_show_profiles": "Afficher les profils enregistrés",

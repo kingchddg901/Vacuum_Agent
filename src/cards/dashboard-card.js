@@ -87,6 +87,10 @@ class EufyDashboardCardEditor extends HTMLElement {
         }
         .toggles { display: flex; flex-direction: column; gap: 10px; }
         .toggle { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--primary-text-color, #f0f2f5); }
+        /* ISSUE #82 -- the companion toggle is a CHILD of "Show map": with no map there
+           is no companion either way. The indent is the whole explanation, which is why
+           it does not need a hint line of its own. */
+        .toggle.sub { margin-inline-start: 22px; }
         .hint { font-size: 0.75rem; color: var(--secondary-text-color, #888); margin-top: 2px; }
       </style>
 
@@ -110,6 +114,7 @@ class EufyDashboardCardEditor extends HTMLElement {
           <label class="toggle"><input id="show_scenes" type="checkbox" ${bool("show_scenes", true) ? "checked" : ""}> ${this.t("vacuum_card.editor_show_scenes")}</label>
           <label class="toggle"><input id="show_dock" type="checkbox" ${bool("show_dock", true) ? "checked" : ""}> ${this.t("vacuum_card.editor_show_dock")}</label>
           <label class="toggle"><input id="show_map" type="checkbox" ${bool("show_map", true) ? "checked" : ""}> ${this.t("vacuum_card.editor_show_map")}</label>
+          <label class="toggle sub"><input id="show_companion" type="checkbox" ${bool("show_companion", true) ? "checked" : ""}> ${this.t("vacuum_card.editor_show_companion")}</label>
         </div>
         <div class="hint">${this.t("vacuum_card.editor_sections_hint")}</div>
       </div>
@@ -132,7 +137,7 @@ class EufyDashboardCardEditor extends HTMLElement {
       if (val) next.title = val; else delete next.title;
       this._fire(next);
     });
-    for (const key of ["show_profiles", "show_scenes", "show_dock", "show_map"]) {
+    for (const key of ["show_profiles", "show_scenes", "show_dock", "show_map", "show_companion"]) {
       this.shadowRoot.getElementById(key)?.addEventListener("change", (e) => {
         this._fire({ ...this._config, [key]: e.target.checked });
       });

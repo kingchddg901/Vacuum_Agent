@@ -206,10 +206,37 @@ show_dock: true                   # default true; pure config — the card does 
                                   # supports_base_station (contrast show_profiles, which does
                                   # honour supports_room_profiles)
 show_map: true                    # default true; the embedded map shipped (shown unless set to false)
+show_companion: true              # default true; a CHILD of show_map (no map, no companion).
+                                  # Card-only — the panel keeps its own companion either way.
 ```
 
 Editor: extend the `EufyRoomCardEditor` pattern — a `vacuum_entity_id` picker + the
 `show_*` toggles. `getStubConfig` returns the first discovered vacuum.
+
+All five `show_*` options default **ON** and are read through `cardSectionEnabled()` in
+`src/cards/_shared.js`, which tests `!== false` rather than truthiness — a config saved
+before an option existed carries no key at all, and `!config.show_x` would switch the
+section off for every existing user on upgrade.
+
+### `show_companion` is TWO gates, not one (issue #82)
+
+2.7.0 answered an earlier report by folding the companion control row behind a caret. The
+reporter came back: a collapsed row still takes a line, because *the caret is the line*.
+So this option **omits** the row rather than collapsing it — and it has to do two things,
+because the paw button that hides the companion **sprite** lives *inside* the row:
+
+| half | where | what happens if it is the only one |
+|---|---|---|
+| the control row | `vacuum-map-host.js` `_render()` — `_companionEnabled()` in the `mascot` gate | the sprite keeps walking the map with no control left that can stop it |
+| the sprite | `vacuum-map-host.js` `_initStack()` — wraps `_state.mapAnimalEnabled` | the row is still there, taking the space the report was about |
+
+The sprite override **wraps** rather than replaces, so the user's own paw toggle still
+decides when the option is on; it also carries follow-robot for free, because
+`renderers/map.js` ANDs `_followActive` with `mapAnimalEnabled`. It reads the config at
+**call** time (`set config` reuses the same state object, so a latched boolean would answer
+with the first config forever), and it deliberately leaves `setMapAnimalEnabled` alone —
+that setter writes the *shared* per-vacuum key, so a card that merely hid its companion
+must never overwrite the panel's choice. Gated by `[CMP-1..6]`.
 
 ## 9. i18n
 

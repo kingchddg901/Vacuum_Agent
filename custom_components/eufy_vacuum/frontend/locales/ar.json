@@ -3044,6 +3044,7 @@
     "dock": "العودة إلى المحطة",
     "editor_sections_hint": "أخفِ قسمًا لإبقاء البطاقة مُدمجة؛ تُخفى الأقسام أيضًا عندما لا تدعمها المكنسة.",
     "editor_sections_label": "الأقسام",
+    "editor_show_companion": "إظهار الحيوان المرافق",
     "editor_show_dock": "إظهار زر المحطة",
     "editor_show_map": "إظهار الخريطة (رسم المناطق)",
     "editor_show_profiles": "إظهار ملفات التعريف المحفوظة",
