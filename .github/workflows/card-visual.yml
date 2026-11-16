@@ -41,7 +41,7 @@ jobs:
       # executed on a runner: a correct gate with no caller, which is the same shape
       # as the dead --evcc-sem-info claimant the spec's own allowlist warns about.
       - name: Visual regression + per-device theme resolution + gallery completeness
-        run: npx playwright test -c harness/playwright.config.mjs visual device-theme gallery-completeness card-preview
+        run: npx playwright test -c harness/playwright.config.mjs visual device-theme gallery-completeness card-preview card-density
 
       - name: Upload diff report on failure
         if: failure()

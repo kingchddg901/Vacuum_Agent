@@ -489,7 +489,8 @@ class EufyRoomCard extends HTMLElement {
           display:     flex;
           align-items: center;
           gap:         10px;
-          padding:     14px 16px 12px;
+          padding:     var(--evcc-card-header-padding,
+                         var(--evcc-card-padding, 14px 16px 12px));
           cursor:      pointer;
           user-select: none;
           -webkit-tap-highlight-color: transparent;
@@ -548,7 +549,7 @@ class EufyRoomCard extends HTMLElement {
           padding: 0 16px 14px;
         }
 
-        .field-group { display: flex; flex-direction: column; gap: 6px; }
+        .field-group { display: flex; flex-direction: column; gap: var(--evcc-card-field-gap, var(--evcc-card-gap, 6px)); }
 
         .field-label {
           font-size: 0.72rem; font-weight: 600;
@@ -583,7 +584,9 @@ class EufyRoomCard extends HTMLElement {
           font-weight:   var(--evcc-chip-font-weight, 500);
           line-height: 1;
           cursor: pointer;
-          transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+          transition: background var(--evcc-transition-normal, 150ms ease),
+                      border-color var(--evcc-transition-normal, 150ms ease),
+                      color var(--evcc-transition-normal, 150ms ease);
           -webkit-tap-highlight-color: transparent;
         }
 
@@ -653,6 +656,7 @@ class EufyRoomCard extends HTMLElement {
         }
 
         .btn-start {
+          box-shadow: var(--evcc-card-action-glow, none);
           color: var(--text-on-accent);
           border-color: transparent;
           background: var(--accent);

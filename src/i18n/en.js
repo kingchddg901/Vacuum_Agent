@@ -2353,6 +2353,11 @@ export const en = {
   "vocab.theme_token.evcc_card_bg": "Card BG",
   "vocab.theme_token.evcc_card_frame_border_width": "Frame Border Width",  // Dashboard Cards group: thickness of the outer edge of a user-added card
   "vocab.theme_token.evcc_card_frame_shadow": "Frame Shadow",  // Dashboard Cards group: CSS box-shadow on the outer edge of a user-added card
+  "vocab.theme_token.evcc_card_action_glow": "Action Glow",  // Dashboard Cards group: accent halo behind a card's primary action button (Start, Run)
+  "vocab.theme_token.evcc_card_field_gap": "Field Gap",  // Dashboard Cards group: space between a setting's label and its control
+  "vocab.theme_token.evcc_card_header_padding": "Header Padding",  // Dashboard Cards group: padding around the title strip at the top of a user-added card
+  "vocab.theme_token.evcc_card_row_padding": "Row Padding",  // Dashboard Cards group: padding inside each room row; lower it for a denser list
+  "vocab.theme_token.evcc_card_section_padding": "Section Padding",  // Dashboard Cards group: padding around a section of the dashboard card
   "vocab.theme_token.evcc_card_gap": "Card Gap",
   "vocab.theme_token.evcc_card_min_height": "Card Min Height",
   "vocab.theme_token.evcc_card_padding": "Card Padding",
@@ -2749,6 +2754,7 @@ export const en = {
   "vocab.theme_token.evcc_space_lg": "Space Lg",
   "vocab.theme_token.evcc_space_md": "Space Md",
   "vocab.theme_token.evcc_space_sm": "Space Sm",
+  "vocab.theme_token.evcc_space_xs": "Space Xs",  // Shared Foundations: the smallest step on the spacing scale (4px)
   "vocab.theme_token.evcc_transition_normal": "Transition Normal",
   "vocab.theme_group.app_shell_typography": "App Shell & Typography",
   "vocab.theme_group.cards_surfaces": "Cards & Surfaces",

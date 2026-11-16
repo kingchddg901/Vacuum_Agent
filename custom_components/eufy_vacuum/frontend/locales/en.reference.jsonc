@@ -404,6 +404,11 @@
       "evcc_card_bg": "Card BG",
       "evcc_card_frame_border_width": "Frame Border Width",  // Dashboard Cards group: thickness of the outer edge of a user-added card
       "evcc_card_frame_shadow": "Frame Shadow",  // Dashboard Cards group: CSS box-shadow on the outer edge of a user-added card
+      "evcc_card_action_glow": "Action Glow",  // Dashboard Cards group: accent halo behind a card's primary action button (Start, Run)
+      "evcc_card_field_gap": "Field Gap",  // Dashboard Cards group: space between a setting's label and its control
+      "evcc_card_header_padding": "Header Padding",  // Dashboard Cards group: padding around the title strip at the top of a user-added card
+      "evcc_card_row_padding": "Row Padding",  // Dashboard Cards group: padding inside each room row; lower it for a denser list
+      "evcc_card_section_padding": "Section Padding",  // Dashboard Cards group: padding around a section of the dashboard card
       "evcc_card_gap": "Card Gap",
       "evcc_card_min_height": "Card Min Height",
       "evcc_card_padding": "Card Padding",
@@ -800,6 +805,7 @@
       "evcc_space_lg": "Space Lg",
       "evcc_space_md": "Space Md",
       "evcc_space_sm": "Space Sm",
+      "evcc_space_xs": "Space Xs",  // Shared Foundations: the smallest step on the spacing scale (4px)
       "evcc_transition_normal": "Transition Normal",
       "evcc_animal_fox_eye_good": "Eye — Good",
       "evcc_animal_fox_eye_mid": "Eye — Mid",

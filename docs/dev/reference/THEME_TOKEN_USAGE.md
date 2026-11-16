@@ -8,9 +8,9 @@
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 
-- Catalog **427** · consumer `var()` uses **2441**
-- **279** with a STATIC consumer · **148** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
-- `var()` → non-catalog tokens **14** · dynamic `var(--evcc-…${…})` sites **3**
+- Catalog **433** · consumer `var()` uses **2501**
+- **285** with a STATIC consumer · **148** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
+- `var()` → non-catalog tokens **13** · dynamic `var(--evcc-…${…})` sites **3**
 
 > **A token with no STATIC consumer is not dead.** This tracer is a regex scan and cannot follow a `var()` whose name is built at runtime, so 148 live tokens would otherwise read as rot — and deleting them would break theming for every animal, every floor material and the whole room palette. The families that construct their names:
 > - **98** `animal` — `src/theme-tokens/animals.js` builds `--evcc-animal-${animal}-${suffix}`; consumed in `animal-svg/`
@@ -229,6 +229,9 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js (color)
 
 **`--evcc-text-strong`** — Text Strong · default `var(--primary-text-color, #f0f2f5)` src/styles/foundation.js
+- src/cards/dashboard-card.js (color)
+- src/cards/profile-card.js (color)
+- src/room-card.js (color)
 - src/styles/learning.js (color)
 - src/styles/metrics.js (color)
 
@@ -241,6 +244,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js
 
 **`--evcc-card-gap`** — Card Gap · default —
+- src/cards/dashboard-card.js
+- src/room-card.js
 - src/styles/rooms.js (gap)
 
 **`--evcc-card-min-height`** — Card Min Height · default —
@@ -248,6 +253,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js (min-height)
 
 **`--evcc-card-padding`** — Card Padding · default —
+- src/cards/dashboard-card.js
+- src/room-card.js
 - src/styles/rooms.js (padding)
 - src/styles/theme-preview.js (padding)
 
@@ -498,6 +505,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js (--evcc-chip-active-border)
 
 **`--evcc-shadow-card`** — Shadow Card · default —
+- src/cards/_shared.js (box-shadow)
 - src/styles/learning.js (--evcc-learning-panel-shadow)
 - src/styles/map.js (box-shadow)
 - src/styles/order.js
@@ -725,7 +733,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-room-grid-min`** — Room Grid Min · default `240px` src/styles/layout.js
 - src/styles/layout.js
 
-## Dashboard Cards  ·  2 static / 2
+## Dashboard Cards  ·  7 static / 7
 
 **`--evcc-card-frame-border-width`** — Frame Border Width · default —
 - src/cards/dashboard-card.js (border)
@@ -736,6 +744,25 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/cards/dashboard-card.js (box-shadow)
 - src/cards/profile-card.js (box-shadow)
 - src/room-card.js (--ha-card-box-shadow)
+
+**`--evcc-card-header-padding`** — Header Padding · default —
+- src/cards/dashboard-card.js (padding)
+- src/room-card.js (padding)
+
+**`--evcc-card-row-padding`** — Row Padding · default —
+- src/cards/dashboard-card.js (padding)
+
+**`--evcc-card-section-padding`** — Section Padding · default —
+- src/cards/dashboard-card.js (padding)
+
+**`--evcc-card-field-gap`** — Field Gap · default —
+- src/cards/dashboard-card.js (gap)
+- src/room-card.js (gap)
+
+**`--evcc-card-action-glow`** — Action Glow · default —
+- src/cards/dashboard-card.js (box-shadow)
+- src/cards/profile-card.js (box-shadow)
+- src/room-card.js (box-shadow)
 
 ## Map  ·  22 static + 12 dynamic / 34
 
@@ -1372,6 +1399,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/shell.js (background)
 
 **`--evcc-status-dot-shadow`** — Status Dot Shadow · default —
+- src/room-card.js (box-shadow)
 - src/styles/shell.js (box-shadow)
 - src/styles/theme-preview.js (box-shadow)
 
@@ -1785,7 +1813,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-animal-cat-white-tip`** — White Tip / Accent · default —
 - _no STATIC consumer — consumed dynamically (animal): `src/theme-tokens/animals.js` builds `--evcc-animal-${animal}-${suffix}`; consumed in `animal-svg/`_
 
-## Shared Foundations  ·  15 static / 15
+## Shared Foundations  ·  16 static / 16
 
 **`--evcc-font-family`** — Font Family · default —
 - src/styles/modal-host.js
@@ -1817,6 +1845,9 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js (padding)
 
 **`--evcc-press-scale`** — Press Scale · default —
+- src/cards/dashboard-card.js
+- src/cards/profile-card.js
+- src/room-card.js
 - src/styles/rooms.js
 
 **`--evcc-radius-card`** — Radius Card · default `var(--ha-card-border-radius, 12px)` src/styles/foundation.js
@@ -1832,6 +1863,10 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js (border-radius)
 
 **`--evcc-radius-chip`** — Radius Chip · default `999px` src/styles/foundation.js
+- src/cards/_shared.js (border-radius)
+- src/cards/dashboard-card.js (border-radius)
+- src/cards/profile-card.js (border-radius)
+- src/room-card.js (border-radius)
 - src/styles/external-jobs.js (border-radius)
 - src/styles/foundation.js (border-radius)
 - src/styles/learning.js (--evcc-learning-chip-radius)
@@ -1841,6 +1876,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js (border-radius)
 
 **`--evcc-radius-inner`** — Radius Inner · default `8px` src/styles/foundation.js
+- src/cards/_shared.js (border-radius)
 - src/cards/dashboard-card.js (border-radius)
 - src/styles/base-station.js (border-radius)
 - src/styles/external-jobs.js (border-radius)
@@ -1865,14 +1901,19 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js (border-radius)
 
 **`--evcc-section-gap`** — Section Gap · default —
+- src/cards/dashboard-card.js (gap)
 - src/styles/rooms.js (gap)
 - src/styles/theme-preview.js (gap)
 
 **`--evcc-space-lg`** — Space Lg · default `16px` src/styles/foundation.js
+- src/cards/dashboard-card.js (padding)
+- src/cards/profile-card.js (margin-top)
 - src/styles/foundation.js (--evcc-pad)
 - src/styles/shell.js (padding)
 
 **`--evcc-space-md`** — Space Md · default `12px` src/styles/foundation.js
+- src/cards/profile-card.js (margin-top)
+- src/room-card.js (gap)
 - src/styles/foundation.js (--evcc-gap)
 - src/styles/rooms.js (padding-bottom)
 - src/styles/rooms.js (margin-bottom)
@@ -1880,10 +1921,21 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme.js (gap)
 
 **`--evcc-space-sm`** — Space Sm · default `8px` src/styles/foundation.js
+- src/cards/dashboard-card.js (gap)
+- src/cards/profile-card.js (gap)
+- src/room-card.js (gap)
 - src/styles/rooms.js (margin-top)
 - src/styles/rooms.js (gap)
 
+**`--evcc-space-xs`** — Space Xs · default `4px` src/styles/foundation.js
+- src/cards/dashboard-card.js (margin)
+- src/cards/dashboard-card.js (gap)
+- src/cards/profile-card.js (gap)
+- src/styles/learning.js (margin-top)
+
 **`--evcc-transition-normal`** — Transition Normal · default `150ms ease` src/styles/foundation.js, src/styles/modal-host.js
+- src/cards/dashboard-card.js
+- src/room-card.js
 - src/styles/base-station.js
 - src/styles/foundation.js
 - src/styles/maintenance.js
@@ -1925,7 +1977,7 @@ None — every catalog token is consumed, statically or dynamically.
 
 ---
 
-## var() → non-catalog tokens  ·  14
+## var() → non-catalog tokens  ·  13
 
 Used in CSS but not in the editor registry (dynamic fragments or intentional internals like `--evcc-grp`).
 
@@ -1933,7 +1985,6 @@ Used in CSS but not in the editor registry (dynamic fragments or intentional int
 - `--evcc-surface-card-override` — src/styles/foundation.js
 - `--evcc-overlay-ink` — src/styles/foundation.js, src/styles/maintenance.js, src/styles/review.js, src/styles/rooms.js, src/styles/setup.js
 - `--evcc-panel-offset` — src/styles/foundation.js
-- `--evcc-space-xs` — src/styles/learning.js
 - `--evcc-map-rotation` — src/styles/map.js
 - `--evcc-mascot-flip` — src/styles/map.js
 - `--evcc-map-ov-savedzone` — src/styles/map.js

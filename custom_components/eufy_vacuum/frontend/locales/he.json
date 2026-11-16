@@ -242,6 +242,11 @@
       "evcc_card_bg": "רקע כרטיס",
       "evcc_card_frame_border_width": "עובי מסגרת",
       "evcc_card_frame_shadow": "צל מסגרת",
+      "evcc_card_action_glow": "זוהר פעולה",
+      "evcc_card_field_gap": "מרווח שדה",
+      "evcc_card_header_padding": "ריפוד כותרת",
+      "evcc_card_row_padding": "ריפוד שורה",
+      "evcc_card_section_padding": "ריפוד חלקים",
       "evcc_card_gap": "מרווח כרטיסים",
       "evcc_card_min_height": "גובה מינימלי לכרטיס",
       "evcc_card_padding": "ריפוד כרטיס",
@@ -658,6 +663,7 @@
       "evcc_space_lg": "מרווח גדול",
       "evcc_space_md": "מרווח בינוני",
       "evcc_space_sm": "מרווח קטן",
+      "evcc_space_xs": "מרווח זעיר",
       "evcc_transition_normal": "מעבר רגיל"
     },
     "theme_group": {

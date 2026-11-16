@@ -80,4 +80,73 @@ export const DASHBOARD_CARD_TOKENS = [
     "--evcc-card-frame-shadow",
     "Frame Shadow",
   ),
+
+  /* =========================================================
+     DENSITY -- keyed by the card, inheriting from the panel
+     =========================================================
+     HIS RULING 2026-11-16: "key by the card it works on with inheritance
+     setting from the panel". Each of these is read as a TWO-STEP chain:
+
+         var(--evcc-card-<thing>, var(--evcc-<panel equivalent>, <literal>))
+
+     so a card value wins; absent one the panel's own token carries down; and
+     absent both, today's shipped pixel paints. That makes every one of them
+     zero-delta at the default, because BOTH halves of the chain are undeclared
+     -- the panel's density tokens have never been declared either, they are
+     read as `var(--evcc-card-padding, 12px)` at styles/rooms.js:389.
+
+     WHY NOT JUST REUSE THE PANEL'S TOKENS. Because they are not the same
+     surface: --evcc-card-padding drives `.evcc-room-card`, the room TILE inside
+     the panel's Rooms view, and one slider cannot mean both without moving two
+     unrelated things at once. Reusing them is the mislabelling this group was
+     created to end (see the header note). Inheriting from them is the opposite:
+     it gives a user who themes the panel a card that follows, for free, and one
+     who wants the card different a place to say so.
+
+     TYPES. The three paddings are compound values (two and three parts), which
+     cannot be a slider -- src/renderers/theme.js renders only single scalars as
+     one -- so they are `text`. Field gap is a single length and gets a real
+     slider with an explicit range, because this group's SLIDER_CONFIG net is
+     {0,8,0.5} and a 6px gap sits inside it. */
+
+  // room-card `.header` is `14px 16px 12px`; dashboard-card's is `14px 16px 10px`.
+  // The 2px disagreement is real and unexplained; each site keeps its own literal
+  // as the final fallback, so setting this token is what makes them agree.
+  cardToken.text(
+    "--evcc-card-header-padding",
+    "Header Padding",
+  ),
+
+  // The room row's head. The one knob a user with a long room list asks for.
+  cardToken.text(
+    "--evcc-card-row-padding",
+    "Row Padding",
+  ),
+
+  // The dashboard card's section inset -- its only breathing-room control.
+  // NOT the frame padding: that was declined deliberately, because only the
+  // profile card pads its frame, so one token would move one card of three.
+  cardToken.text(
+    "--evcc-card-section-padding",
+    "Section Padding",
+  ),
+
+  // Label-to-control gap. 6px has no member on the 4/8/12/16 spacing scale, so
+  // snapping it to --evcc-space-sm would be +2px in both cards.
+  cardToken(
+    "--evcc-card-field-gap",
+    "Field Gap",
+    "size",
+    { min: 0, max: 16, step: 0.5 },
+  ),
+
+  // The accent halo on the profile card's Run button. No existing token fits:
+  // --evcc-shadow-card and --evcc-shadow-hover are elevation and hover, and both
+  // already carry depth-shadow literals everywhere they are read. Deliberately
+  // NOT chained to one of them -- a resting accent halo is a different thing, so
+  // this is the one density token with no panel parent to inherit from.
+  cardToken.shadow(
+    "--evcc-card-action-glow",
+    "Action Glow",
+  ),
 ];

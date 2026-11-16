@@ -72,7 +72,8 @@ const CARD_CSS = `
     display: inline-flex; align-items: center; gap: 4px;
     background: var(--accent); color: var(--text-on-accent);
     font: inherit; font-weight: 600; padding: 8px 20px; border-radius: var(--evcc-radius-chip, 999px);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: var(--evcc-card-action-glow,
+                  0 0 6px color-mix(in srgb, var(--accent) 55%, transparent));
   }
   .evcc-pcard-run:active:not([disabled]) { transform: scale(var(--evcc-press-scale, 0.97)); }
   .evcc-pcard-run[disabled] { opacity: 0.5; cursor: default; box-shadow: none; }
@@ -100,8 +101,13 @@ const CARD_CSS = `
     font-size: 0.62rem; font-weight: 700;
     color: var(--text-muted); background: var(--surface-input);
   }
+  /* REPLICA RNG7V2Y3 -- the emphasised step kinds. Primary: src/styles/run-profiles.js:328-330.
+     --zone was missing here while src/state/steps-manifest.js:46 emits it and the panel
+     styles it, so one step rendered dim on the card and bold in the panel from the same
+     data. The set is THREE kinds; adding one to the panel means adding it here. */
   .evcc-run-profiles-seq-step--charge,
-  .evcc-run-profiles-seq-step--wait { color: var(--text-primary); font-weight: 600; }
+  .evcc-run-profiles-seq-step--wait,
+  .evcc-run-profiles-seq-step--zone { color: var(--text-primary); font-weight: 600; }
   .evcc-run-profiles-seq-kind { font-weight: 700; color: var(--text-primary); }
   .evcc-run-profiles-seq-mode {
     font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.05em;
