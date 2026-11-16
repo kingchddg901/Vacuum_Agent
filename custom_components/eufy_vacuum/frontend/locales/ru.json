@@ -2163,6 +2163,7 @@
       "evcc_card_frame_shadow": "Тень рамки",
       "evcc_card_action_glow": "Свечение действия",
       "evcc_card_field_gap": "Отступ поля",
+      "evcc_card_font_scale": "Масштаб текста",
       "evcc_card_header_padding": "Внутр. отступ заголовка",
       "evcc_card_row_padding": "Внутр. отступ строки",
       "evcc_card_section_padding": "Внутр. отступ раздела",

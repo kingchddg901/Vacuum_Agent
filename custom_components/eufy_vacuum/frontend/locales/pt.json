@@ -2080,6 +2080,7 @@
       "evcc_card_frame_shadow": "Sombra da moldura",
       "evcc_card_action_glow": "Brilho de ação",
       "evcc_card_field_gap": "Espaço do campo",
+      "evcc_card_font_scale": "Escala do texto",
       "evcc_card_header_padding": "Preenchimento do cabeçalho",
       "evcc_card_row_padding": "Preenchimento da linha",
       "evcc_card_section_padding": "Preenchimento da secção",

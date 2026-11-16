@@ -2065,6 +2065,7 @@
       "evcc_card_frame_shadow": "Rahmen-Schatten",
       "evcc_card_action_glow": "Aktions-Leuchten",
       "evcc_card_field_gap": "Feldabstand",
+      "evcc_card_font_scale": "Textskalierung",
       "evcc_card_header_padding": "Kopfzeilen-Innenabstand",
       "evcc_card_row_padding": "Zeilen-Innenabstand",
       "evcc_card_section_padding": "Abschnitts-Innenabstand",

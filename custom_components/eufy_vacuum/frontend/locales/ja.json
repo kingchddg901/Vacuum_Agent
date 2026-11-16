@@ -244,6 +244,7 @@
       "evcc_card_frame_shadow": "枠線のシャドウ",
       "evcc_card_action_glow": "アクションのグロー",
       "evcc_card_field_gap": "項目の間隔",
+      "evcc_card_font_scale": "文字サイズ倍率",
       "evcc_card_header_padding": "ヘッダーのパディング",
       "evcc_card_row_padding": "行のパディング",
       "evcc_card_section_padding": "セクションのパディング",

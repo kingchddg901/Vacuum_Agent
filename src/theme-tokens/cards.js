@@ -149,4 +149,41 @@ export const DASHBOARD_CARD_TOKENS = [
     "--evcc-card-action-glow",
     "Action Glow",
   ),
+
+  /* =========================================================
+     TYPE SIZE -- one multiplier, not nineteen tokens
+     =========================================================
+     HIS RULING 2026-11-16: "i like the font sizes that are there but users may
+     not ... per item sizes seems excessive but a font scale to hold the diff
+     between them may work well."
+
+     So this is a MULTIPLIER, and every font-size in the three cards is written
+     as `calc(<its own literal> * var(--evcc-card-font-scale, 1))`. Multiplying
+     is what "hold the diff between them" means arithmetically: the RATIO between
+     any two sizes is untouched at every setting, so the type relationships he
+     likes survive being scaled, and nothing about the design has to be
+     re-decided to make the text bigger.
+
+     WHY NOT A SET OF STEPS. The cards carry 19 distinct sizes over 51
+     declarations. A token per size is 19 tokens and 342 translated strings, and
+     it hands the user a way to flatten the hierarchy by accident -- set two
+     steps equal and a label stops reading as a label. A token per STEP (a 4-step
+     scale) is fewer, but it forces 51 declarations onto 4 values, which is a
+     visible retype of the cards he just said he likes. The multiplier is the
+     only shape that is free at the default.
+
+     DEFAULT 1 IS EXACTLY TODAY. calc(0.80rem * 1) is 0.80rem, so every existing
+     install is byte-identical -- verified against the committed card renders.
+
+     RANGE IS DECLARED. Without it this inherits the group's SLIDER_CONFIG of
+     {0, 8, 0.5}, which on a multiplier means a slider whose first notch doubles
+     the text and whose last makes it eight times life size. 0.5-2.0 in 0.05
+     steps is the usable band; 0 would make the text vanish, and the clamp is
+     what stops that being one drag away. */
+  cardToken(
+    "--evcc-card-font-scale",
+    "Font Scale",
+    "number",
+    { min: 0.5, max: 2, step: 0.05 },
+  ),
 ];

@@ -61,9 +61,9 @@ const CARD_CSS = `
     padding: 16px;
     color: var(--text-primary);
   }
-  .evcc-pcard-name { font-size: 1.15rem; font-weight: 600; line-height: 1.2; color: var(--evcc-text-strong, var(--text-primary)); }
-  .evcc-pcard-meta { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
-  .evcc-pcard-meta-rooms { color: var(--text-muted); font-size: 0.85rem; margin-top: 2px; }
+  .evcc-pcard-name { font-size: calc(1.15rem * var(--evcc-card-font-scale, 1)); font-weight: 600; line-height: 1.2; color: var(--evcc-text-strong, var(--text-primary)); }
+  .evcc-pcard-meta { color: var(--text-muted); font-size: calc(0.85rem * var(--evcc-card-font-scale, 1)); margin-top: 4px; }
+  .evcc-pcard-meta-rooms { color: var(--text-muted); font-size: calc(0.85rem * var(--evcc-card-font-scale, 1)); margin-top: 2px; }
   .evcc-pcard-manifest { margin-top: var(--evcc-space-md, 12px); }
   .evcc-pcard-footer { margin-top: var(--evcc-space-lg, 16px); display: flex; align-items: center; justify-content: flex-end; gap: var(--evcc-space-sm, 8px); }
   .evcc-pcard-footer .pcard-lang { margin-inline-end: auto; }
@@ -77,13 +77,13 @@ const CARD_CSS = `
   }
   .evcc-pcard-run:active:not([disabled]) { transform: scale(var(--evcc-press-scale, 0.97)); }
   .evcc-pcard-run[disabled] { opacity: 0.5; cursor: default; box-shadow: none; }
-  .evcc-pcard-empty { color: var(--text-muted); font-size: 0.9rem; padding: 8px 0; }
+  .evcc-pcard-empty { color: var(--text-muted); font-size: calc(0.9rem * var(--evcc-card-font-scale, 1)); padding: 8px 0; }
 
   /* "Runs As" step manifest — class names match the shared renderStepsManifest
      output; styled off the same theme aliases as the card chrome. */
   .evcc-run-profiles-sequence { display: flex; flex-direction: column; gap: 6px; }
   .evcc-run-profiles-label {
-    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    font-size: calc(0.72rem * var(--evcc-card-font-scale, 1)); font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.06em; color: var(--text-muted);
   }
   .evcc-run-profiles-seq-list {
@@ -92,13 +92,13 @@ const CARD_CSS = `
   }
   .evcc-run-profiles-seq-step {
     display: flex; align-items: center; gap: 6px;
-    font-size: 0.78rem; color: var(--text-muted);
+    font-size: calc(0.78rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted);
   }
   .evcc-run-profiles-seq-step::before {
     counter-increment: evcc-seq; content: counter(evcc-seq);
     flex: 0 0 auto; width: 16px; height: 16px; display: inline-flex;
     align-items: center; justify-content: center; border-radius: 50%;
-    font-size: 0.62rem; font-weight: 700;
+    font-size: calc(0.62rem * var(--evcc-card-font-scale, 1)); font-weight: 700;
     color: var(--text-muted); background: var(--surface-input);
   }
   /* REPLICA RNG7V2Y3 -- the emphasised step kinds. Primary: src/styles/run-profiles.js:328-330.
@@ -110,7 +110,7 @@ const CARD_CSS = `
   .evcc-run-profiles-seq-step--zone { color: var(--text-primary); font-weight: 600; }
   .evcc-run-profiles-seq-kind { font-weight: 700; color: var(--text-primary); }
   .evcc-run-profiles-seq-mode {
-    font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.05em;
+    font-size: calc(0.64rem * var(--evcc-card-font-scale, 1)); text-transform: uppercase; letter-spacing: 0.05em;
     padding: 1px 5px; border-radius: var(--evcc-radius-chip, 999px);
     color: var(--text-muted); background: var(--surface-input);
   }

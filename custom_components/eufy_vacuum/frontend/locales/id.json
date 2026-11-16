@@ -244,6 +244,7 @@
       "evcc_card_frame_shadow": "Bayangan Bingkai",
       "evcc_card_action_glow": "Cahaya Aksi",
       "evcc_card_field_gap": "Jarak Bidang",
+      "evcc_card_font_scale": "Skala Teks",
       "evcc_card_header_padding": "Padding Header",
       "evcc_card_row_padding": "Padding Baris",
       "evcc_card_section_padding": "Padding Bagian",

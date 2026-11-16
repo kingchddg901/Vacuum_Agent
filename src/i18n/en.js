@@ -2355,6 +2355,7 @@ export const en = {
   "vocab.theme_token.evcc_card_frame_shadow": "Frame Shadow",  // Dashboard Cards group: CSS box-shadow on the outer edge of a user-added card
   "vocab.theme_token.evcc_card_action_glow": "Action Glow",  // Dashboard Cards group: accent halo behind a card's primary action button (Start, Run)
   "vocab.theme_token.evcc_card_field_gap": "Field Gap",  // Dashboard Cards group: space between a setting's label and its control
+  "vocab.theme_token.evcc_card_font_scale": "Text Scale",  // Dashboard Cards group: multiplies every text size on the card at once, keeping the relative sizes intact (1 = as shipped). "Text", not "Font": it sits beside "Font Family" and scales sizes, not the typeface — all 17 translators independently rejected their own language's word for font here for the same reason
   "vocab.theme_token.evcc_card_header_padding": "Header Padding",  // Dashboard Cards group: padding around the title strip at the top of a user-added card
   "vocab.theme_token.evcc_card_row_padding": "Row Padding",  // Dashboard Cards group: padding inside each room row; lower it for a denser list
   "vocab.theme_token.evcc_card_section_padding": "Section Padding",  // Dashboard Cards group: padding around a section of the dashboard card

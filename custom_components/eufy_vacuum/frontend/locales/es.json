@@ -2081,6 +2081,7 @@
       "evcc_card_frame_shadow": "Sombra del borde exterior",
       "evcc_card_action_glow": "Brillo de acción",
       "evcc_card_field_gap": "Espacio del campo",
+      "evcc_card_font_scale": "Escala del texto",
       "evcc_card_header_padding": "Relleno del encabezado",
       "evcc_card_row_padding": "Relleno de la fila",
       "evcc_card_section_padding": "Relleno de la sección",

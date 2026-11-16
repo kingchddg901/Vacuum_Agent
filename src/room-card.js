@@ -510,13 +510,13 @@ class EufyRoomCard extends HTMLElement {
         }
 
         .room-name {
-          font-size: 0.96rem; font-weight: 700;
+          font-size: calc(0.96rem * var(--evcc-card-font-scale, 1)); font-weight: 700;
           color: var(--evcc-text-strong, var(--text-primary)); flex: 1; min-width: 0;
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
         .dirty-badge {
-          font-size: 0.70rem; font-weight: 600;
+          font-size: calc(0.70rem * var(--evcc-card-font-scale, 1)); font-weight: 600;
           color: var(--accent);
           background: color-mix(in srgb, var(--accent) 12%, transparent);
           border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
@@ -527,7 +527,7 @@ class EufyRoomCard extends HTMLElement {
         /* ---- select hint (explains the clickable room-name header) ---- */
         .select-hint {
           margin: 0 16px 8px;
-          font-size: 0.72rem;
+          font-size: calc(0.72rem * var(--evcc-card-font-scale, 1));
           line-height: 1.35;
           color: var(--text-muted);
         }
@@ -535,7 +535,7 @@ class EufyRoomCard extends HTMLElement {
         /* ---- carpet notice ---- */
         .carpet-notice {
           margin: 0 16px 8px;
-          font-size: 0.78rem;
+          font-size: calc(0.78rem * var(--evcc-card-font-scale, 1));
           color: var(--text-muted);
           background: var(--surface-subtle);
           border: 1px solid var(--border);
@@ -552,7 +552,7 @@ class EufyRoomCard extends HTMLElement {
         .field-group { display: flex; flex-direction: column; gap: var(--evcc-card-field-gap, var(--evcc-card-gap, 6px)); }
 
         .field-label {
-          font-size: 0.72rem; font-weight: 600;
+          font-size: calc(0.72rem * var(--evcc-card-font-scale, 1)); font-weight: 600;
           color: var(--text-muted);
           text-transform: uppercase; letter-spacing: 0.05em;
         }
@@ -580,7 +580,7 @@ class EufyRoomCard extends HTMLElement {
           border: 1px solid var(--evcc-chip-border, var(--evcc-border-default));
           background:    var(--evcc-chip-bg, var(--evcc-surface-input));
           color:         var(--evcc-chip-text, var(--evcc-text-secondary));
-          font-size:     var(--evcc-chip-font-size, 0.82rem);
+          font-size: calc(var(--evcc-chip-font-size, 0.82rem) * var(--evcc-card-font-scale, 1));
           font-weight:   var(--evcc-chip-font-weight, 500);
           line-height: 1;
           cursor: pointer;
@@ -637,7 +637,7 @@ class EufyRoomCard extends HTMLElement {
           border: 1px solid var(--border);
           background: transparent;
           color: var(--text-muted);
-          font-size: 0.82rem; font-weight: 600;
+          font-size: calc(0.82rem * var(--evcc-card-font-scale, 1)); font-weight: 600;
           cursor: pointer;
           transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
           -webkit-tap-highlight-color: transparent;

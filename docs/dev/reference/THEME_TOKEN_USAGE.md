@@ -8,8 +8,8 @@
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 
-- Catalog **433** · consumer `var()` uses **2501**
-- **285** with a STATIC consumer · **148** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
+- Catalog **434** · consumer `var()` uses **2541**
+- **286** with a STATIC consumer · **148** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
 - `var()` → non-catalog tokens **13** · dynamic `var(--evcc-…${…})` sites **3**
 
 > **A token with no STATIC consumer is not dead.** This tracer is a regex scan and cannot follow a `var()` whose name is built at runtime, so 148 live tokens would otherwise read as rot — and deleting them would break theming for every animal, every floor material and the whole room palette. The families that construct their names:
@@ -568,8 +568,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js (color)
 
 **`--evcc-chip-font-size`** — Chip Font Size · default src/styles/modal-host.js, src/styles/order.js, src/styles/rooms.js
-- src/cards/dashboard-card.js (font-size)
-- src/room-card.js (font-size)
+- src/cards/dashboard-card.js
+- src/room-card.js
 - src/styles/foundation.js (font-size)
 
 **`--evcc-chip-font-weight`** — Chip Font Weight · default src/styles/modal-host.js, src/styles/order.js, src/styles/rooms.js
@@ -733,7 +733,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-room-grid-min`** — Room Grid Min · default `240px` src/styles/layout.js
 - src/styles/layout.js
 
-## Dashboard Cards  ·  7 static / 7
+## Dashboard Cards  ·  8 static / 8
 
 **`--evcc-card-frame-border-width`** — Frame Border Width · default —
 - src/cards/dashboard-card.js (border)
@@ -763,6 +763,12 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/cards/dashboard-card.js (box-shadow)
 - src/cards/profile-card.js (box-shadow)
 - src/room-card.js (box-shadow)
+
+**`--evcc-card-font-scale`** — Font Scale · default —
+- src/cards/_shared.js
+- src/cards/dashboard-card.js
+- src/cards/profile-card.js
+- src/room-card.js
 
 ## Map  ·  22 static + 12 dynamic / 34
 

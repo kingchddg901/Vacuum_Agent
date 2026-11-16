@@ -115,3 +115,51 @@ test("[CDN-4] the action glow reaches all three primary actions", async ({ page 
       .toContain("0, 255, 0");
   }
 });
+
+test("[CFS-1] font scale 1 is byte-identical, and the scale holds every ratio", async ({ page }) => {
+  // HIS RULING: "i like the font sizes that are there but users may not ... per item
+  // sizes seems excessive but a font scale to hold the diff between them may work well."
+  //
+  // So this asserts BOTH halves, and the second is the one that distinguishes a
+  // multiplier from a step scale:
+  //   at 1    -> every size is exactly what shipped. THE RED INPUT: change any literal.
+  //   at 1.5  -> every size is x1.5 AND the ratio between any two is unchanged.
+  //              THE RED INPUT: wire some sites and not others, or snap sizes onto a
+  //              set of fixed steps. Either leaves scale 1 perfect and the spread
+  //              non-zero, which is precisely what "holds the diff" rules out.
+  //
+  // A test that only checked scale 1 would pass on a token nobody wired.
+  await mountHarness(page);
+  const r = await page.evaluate(async () => {
+    await window.__evcc.mountCard("room", {});
+    const card = document.querySelector("eufy-room-card");
+    const sel = [".room-name", ".chip", ".field-label", ".btn"];
+    const read = () => Object.fromEntries(sel.map((s) => {
+      const el = card.shadowRoot.querySelector(s);
+      return [s, el ? parseFloat(getComputedStyle(el).fontSize) : null];
+    }));
+    const at1 = read();
+    card.style.setProperty("--evcc-card-font-scale", "1.5");
+    await new Promise((res) => setTimeout(res, 120));
+    return { at1, at15: read() };
+  });
+
+  // the sizes that ship, in px at a 16px root -- 0.96/0.82/0.72/0.82 rem
+  expect(r.at1[".room-name"]).toBeCloseTo(15.36, 2);
+  expect(r.at1[".chip"]).toBeCloseTo(13.12, 2);
+  expect(r.at1[".field-label"]).toBeCloseTo(11.52, 2);
+  expect(r.at1[".btn"]).toBeCloseTo(13.12, 2);
+
+  const ratios = Object.keys(r.at1)
+    .filter((k) => r.at1[k] != null && r.at15[k] != null)
+    .map((k) => r.at15[k] / r.at1[k]);
+  expect(ratios.length, "no selector rendered -- the probe measured nothing").toBeGreaterThan(3);
+  for (const x of ratios) expect(x).toBeCloseTo(1.5, 2);
+
+  // THE DIFF-HOLDING CLAIM, as one number: every selector scaled by the SAME factor.
+  const spread = Math.max(...ratios) - Math.min(...ratios);
+  expect(spread,
+    `every card text size must scale by the same factor; spread ${spread} means some ` +
+    `sites are unwired or snapped to steps, which changes the type relationships`)
+    .toBeLessThan(0.001);
+});

@@ -244,6 +244,7 @@
       "evcc_card_frame_shadow": "ظل الإطار",
       "evcc_card_action_glow": "توهّج الإجراء",
       "evcc_card_field_gap": "فجوة الحقل",
+      "evcc_card_font_scale": "تحجيم النص",
       "evcc_card_header_padding": "حشو الترويسة",
       "evcc_card_row_padding": "حشو الصف",
       "evcc_card_section_padding": "حشو القسم",

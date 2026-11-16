@@ -2065,6 +2065,7 @@
       "evcc_card_frame_shadow": "Randschaduw",
       "evcc_card_action_glow": "Gloed actieknop",
       "evcc_card_field_gap": "Veldmarge",
+      "evcc_card_font_scale": "Tekstschaal",
       "evcc_card_header_padding": "Koptekstopvulling",
       "evcc_card_row_padding": "Rijopvulling",
       "evcc_card_section_padding": "Sectieopvulling",

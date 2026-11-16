@@ -2068,6 +2068,7 @@
       "evcc_card_frame_shadow": "Ombra cornice",
       "evcc_card_action_glow": "Bagliore azione",
       "evcc_card_field_gap": "Spazio input",
+      "evcc_card_font_scale": "Scala testo",
       "evcc_card_header_padding": "Spaziatura interna intestazione",
       "evcc_card_row_padding": "Spaziatura interna riga",
       "evcc_card_section_padding": "Spaziatura interna sezione",

@@ -244,6 +244,7 @@
       "evcc_card_frame_shadow": "边框阴影",
       "evcc_card_action_glow": "操作光晕",
       "evcc_card_field_gap": "字段间距",
+      "evcc_card_font_scale": "文字缩放",
       "evcc_card_header_padding": "页眉内边距",
       "evcc_card_row_padding": "行内边距",
       "evcc_card_section_padding": "区块内边距",
