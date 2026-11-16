@@ -154,6 +154,64 @@ don't carry one). A few things you can do with it:
     but shared between the panel and the card (they're stored per vacuum and map, not per
     view).
 
+## Styling the cards from a Home Assistant theme
+
+The cards already follow your Home Assistant theme. They don't carry a fixed palette — they
+read **eight** of Home Assistant's own theme variables and compute everything else from
+them, so a card picks up a theme you already have without being told about it.
+
+Set any of these in your HA theme and the cards follow:
+
+| Set this in your theme | and it moves |
+|---|---|
+| `card-background-color` | the card surface, and every panel, chip, well and raised block derived from it |
+| `primary-text-color` | body text, headings, **and every tinted overlay** — borders, chips, hovers, controls |
+| `secondary-text-color` | captions, hints, secondary labels |
+| `accent-color` | the accent: active chips, focus rings, primary buttons |
+| `success-color` | "good" states (charged, complete) |
+| `warning-color` | "attention" states |
+| `error-color` | "problem" states (faults, unavailable) |
+| `ha-card-border-radius` | the card's corner radius |
+
+`primary-text-color` is the one worth knowing about. It is not just the text — the cards
+derive every translucent overlay from it, so it inverts the whole card with your theme:
+near-white ink on a dark theme, near-black on a light one. That is why a light HA theme
+produces a readable card rather than white-on-white.
+
+### Overriding the card surface on its own
+
+`card-background-color` also moves the panels and wells derived from it. If you want to
+change **only** the card's own background, there is one dedicated variable:
+
+```yaml
+my-theme:
+  evcc-surface-card-override: "rgba(50, 50, 50, 0.65)"
+```
+
+It accepts any colour value, translucency included. Leave it unset and the card surface
+derives from `card-background-color` exactly as before.
+
+!!! note "Why the other `evcc-` names don't work"
+
+    The cards' internal tokens are all named `--evcc-…`, and setting one of those in a
+    theme has no effect — `evcc-surface-card`, for instance, is ignored. That is not an
+    oversight, it is the cost of the cards following your theme at all: those names are
+    *computed* from the eight variables above, and in CSS a value an element computes for
+    itself always beats one it inherits. So they are outputs of the theming system, not
+    inputs to it. The eight variables are the inputs, plus the one override above.
+
+    If you want a specific palette rather than matching your dashboard, use the Vacuum
+    Agent theme editor and tick **Use the Vacuum Agent theme** in the card's own editor
+    (see below). That is applied directly to the card and wins over both.
+
+### Or carry the Vacuum Agent theme across
+
+Each card's editor has a **Use the Vacuum Agent theme** checkbox, off by default. Ticked,
+that card wears the palette, opacities and font from the theme set for its vacuum instead
+of your Home Assistant theme. It is per card, so you can mix — a themed room card beside a
+Dashboard Mode card that still matches your dashboard. Unticking it hands the card straight
+back to the HA theme.
+
 ## Panel or cards — which?
 
 They're complementary, and you can use both:

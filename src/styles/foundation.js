@@ -165,7 +165,40 @@ export const foundationTokens = `
     /* Surfaces */
     /* anchor: CNRE7F7B */
     --evcc-surface-base:   var(--card-background-color, #1c2127);
-    --evcc-surface-card:   var(--evcc-surface-base);
+    /* anchor: RN6KQWT2  THE ONE LEAF A HOME ASSISTANT THEME CAN OVERRIDE.
+       NO BACKTICKS IN THIS COMMENT -- it lives inside the foundationTokens
+       TEMPLATE LITERAL, so one backtick terminates the string and every style
+       module fails to import. Cost: one check:styles cycle while writing it.
+
+       ISSUE #83. A theme author set evcc-surface-card in their own HA theme and
+       nothing happened, and they were right to expect it to work. The reason it
+       cannot is structural rather than an oversight: this seed is a DERIVATION
+       GRAPH -- ten roots that read HA's own variables, 29 surfaces computed from
+       them -- and --evcc-surface-card is an OUTPUT of it, one step downstream of
+       --card-background-color. A declared custom property always beats an
+       inherited one, so deriving a token is the same act as closing it. That
+       derivation is not optional: it is the #65 repair, without which every tint
+       was a hardcoded white-alpha that rendered invisible on a light theme.
+
+       --evcc-surface-card-override IS NEVER DECLARED, anywhere, and that is the
+       whole mechanism. An undeclared custom property inherits freely, so a theme
+       setting it on the document reaches this var() and wins; absent one, the
+       second argument derives exactly as before. Existing installs are unaffected
+       because nobody has it set.
+       NOT a cycle: the two property names differ. Declaring --evcc-surface-card
+       with a var() that reads --evcc-surface-card would reference the property
+       being declared, which CSS resolves as a cycle and discards whole.
+
+       WHY ONLY THIS LEAF, and why the override carries a DIFFERENT name than the
+       one a theme author would guess. Making all 29 derived tokens overridable at
+       their own names means deleting their declarations and moving each derivation
+       into a var() fallback at every read site -- 2309 of them, 23 for this token
+       alone -- and a missed site is SILENT: one surface quietly stops honouring the
+       override. That is the replica-set shape this project keeps paying for. One
+       line here cannot be partially applied. The seam generalises by the same
+       one-line rule if a second leaf ever earns it; the shipped surface stays one.
+       Gated by SCO-* in styles/surface-card-override.test.mjs. */
+    --evcc-surface-card:   var(--evcc-surface-card-override, var(--evcc-surface-base));
 
     /* anchor: RNS5JWBV  the OVERLAY INK -- the one question every tinted surface
        and border asks: "what colour do I tint the base WITH?"

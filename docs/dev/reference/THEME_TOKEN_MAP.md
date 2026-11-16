@@ -40,7 +40,7 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-surface-action` | Surface Action | color | `color-mix(in srgb, var(--evcc-overlay-ink) 10%, transparent)` |  |
 | `--evcc-surface-action-hover` | Surface Action Hover | color | `color-mix(in srgb, var(--evcc-overlay-ink) 18%, transparent)` |  |
 | `--evcc-surface-base` | Surface Base | color | `var(--card-background-color, #1c2127)` |  |
-| `--evcc-surface-card` | Surface Card | color | `var(--evcc-surface-base)` |  |
+| `--evcc-surface-card` | Surface Card | color | `var(--evcc-surface-card-override, var(--evcc-surface-base))` |  |
 | `--evcc-surface-chip` | Surface Chip | color | `color-mix(in srgb, var(--evcc-overlay-ink) 9%, transparent)` |  |
 | `--evcc-surface-input` | Surface Input | color | `color-mix(in srgb, var(--evcc-overlay-ink) 6%, transparent)` |  |
 | `--evcc-surface-overlay` | Surface Overlay | color | `rgba(0,0,0,0.4)` |  |

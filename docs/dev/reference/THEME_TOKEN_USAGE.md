@@ -10,7 +10,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 - Catalog **425** · consumer `var()` uses **2390**
 - **277** with a STATIC consumer · **148** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
-- `var()` → non-catalog tokens **13** · dynamic `var(--evcc-…${…})` sites **3**
+- `var()` → non-catalog tokens **14** · dynamic `var(--evcc-…${…})` sites **3**
 
 > **A token with no STATIC consumer is not dead.** This tracer is a regex scan and cannot follow a `var()` whose name is built at runtime, so 148 live tokens would otherwise read as rot — and deleting them would break theming for every animal, every floor material and the whole room palette. The families that construct their names:
 > - **98** `animal` — `src/theme-tokens/animals.js` builds `--evcc-animal-${animal}-${suffix}`; consumed in `animal-svg/`
@@ -266,13 +266,12 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-surface-base`** — Surface Base · default `var(--card-background-color, #1c2127)` src/styles/foundation.js
 - custom_components/eufy_vacuum/themes/preloaded.py
 - src/styles/apply-tokens.js (background-color)
-- src/styles/foundation.js (--evcc-surface-card)
 - src/styles/foundation.js
 - src/styles/modal-host.js (--evcc-modal-bg)
 - src/styles/theme.js (background)
 - src/styles/theme.js
 
-**`--evcc-surface-card`** — Surface Card · default `var(--evcc-surface-base)` src/styles/foundation.js
+**`--evcc-surface-card`** — Surface Card · default `var(--evcc-surface-card-override, var(--evcc-surface-base))` src/styles/foundation.js
 - custom_components/eufy_vacuum/themes/preloaded.py
 - src/cards/_shared.js (background)
 - src/cards/dashboard-card.js (--surface)
@@ -1872,11 +1871,12 @@ None — every catalog token is consumed, statically or dynamically.
 
 ---
 
-## var() → non-catalog tokens  ·  13
+## var() → non-catalog tokens  ·  14
 
 Used in CSS but not in the editor registry (dynamic fragments or intentional internals like `--evcc-grp`).
 
 - `--evcc-animal-X` — custom_components/eufy_vacuum/frontend/animal-svg/animal-svg.js
+- `--evcc-surface-card-override` — src/styles/foundation.js
 - `--evcc-overlay-ink` — src/styles/foundation.js, src/styles/maintenance.js, src/styles/review.js, src/styles/rooms.js, src/styles/setup.js
 - `--evcc-panel-offset` — src/styles/foundation.js
 - `--evcc-space-xs` — src/styles/learning.js
