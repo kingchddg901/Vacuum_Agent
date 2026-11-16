@@ -19,6 +19,7 @@ import { translate, resolveLang, ensureLocalesLoaded, applyDir } from "../i18n/i
 // invisible on a light HA theme. Same gap as the standalone map embed, same repair:
 // define the tokens here rather than re-inking each fallback.
 import { foundationTokens } from "../styles/foundation.js";
+import { applyVaThemeToCard } from "../styles/card-theme.js";
 import {
   esc, callResponse, defineCard, registerCard, getStoredLang, setStoredLang,
   renderLangControl, wireLangControl, LANG_CSS, vocab, roomSwitchesFor, GRID_PROFILE_CARD } from "./_shared.js";
@@ -210,6 +211,21 @@ class VacuumAgentProfileCard extends HTMLElement {
   _render() {
     if (!this.shadowRoot) return;
     applyDir(this, resolveLang(this._hass, this._config, this._langOverride));
+
+    /* Opt-in VA theme — see styles/card-theme.js. Painted on EVERY render so the card
+       tracks a theme edit, an HA theme switch, or the option being turned off again, and
+       called even when OFF because the writer clears by being handed nothing.
+       ABOVE the two early returns below: both replace innerHTML and return, and the
+       tokens live in the inline style of the HOST, which survives that. Below them, the
+       "configure me" and "loading" states would render in the VA palette or, worse, keep
+       a stale one after the option was switched off. */
+    applyVaThemeToCard(
+      this,
+      this._hass,
+      this._vacuumId(),
+      this._config?.va_theme === true,
+    );
+
     const style = `<style>${foundationTokens}${CARD_CSS}</style>`;
 
     if (!this._vacuumId() || !this._mapId() || !this._profileId()) {
@@ -461,10 +477,25 @@ class VacuumAgentProfileCardEditor extends HTMLElement {
         <label>${this.t("profile_card.editor_profile_label")}</label>
         ${profileField()}
       </div>
+
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-weight:400">
+          <input id="va-theme" type="checkbox" style="width:auto" ${this._config.va_theme === true ? "checked" : ""}>
+          ${this.t("room_card.editor_va_theme_label")}
+        </label>
+        <div class="hint">${this.t("room_card.editor_va_theme_hint")}</div>
+      </div>
     `;
 
     this.shadowRoot.getElementById("vacuum")?.addEventListener("change", (e) => {
       this._fire({ ...this._config, vacuum_entity_id: e.target.value, map_id: "", profile_id: "" });
+    });
+    // Written ONLY when true, so a card that never opted in carries no key and its stored
+    // config stays byte-identical to one from before this option existed.
+    this.shadowRoot.getElementById("va-theme")?.addEventListener("change", (e) => {
+      const next = { ...this._config };
+      if (e.target.checked) next.va_theme = true; else delete next.va_theme;
+      this._fire(next);
     });
     this.shadowRoot.getElementById("map")?.addEventListener("change", (e) => {
       this._fire({ ...this._config, map_id: e.target.value, profile_id: "" });

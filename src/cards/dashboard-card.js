@@ -21,6 +21,7 @@ import {
 // invisible on a light HA theme. Same gap as the standalone map embed, same repair:
 // define the tokens here rather than re-inking each fallback.
 import { foundationTokens } from "../styles/foundation.js";
+import { applyVaThemeToCard } from "../styles/card-theme.js";
 import { emptyArmed, nextArmed, planStart, armedIsValid } from "./dashboard-dispatch.js";
 import { draftsToNormalizedRects, normRotation, ZONE_MAX_FALLBACK } from "./zone-geometry.js";
 import { dashboardSuggestion } from "./card-suggestions.js";
@@ -112,6 +113,14 @@ class EufyDashboardCardEditor extends HTMLElement {
         </div>
         <div class="hint">${this.t("vacuum_card.editor_sections_hint")}</div>
       </div>
+
+      <div class="field">
+        <label class="toggle" style="text-transform:none;letter-spacing:0;font-weight:400">
+          <input id="va-theme" type="checkbox" style="width:auto" ${this._config.va_theme === true ? "checked" : ""}>
+          ${this.t("room_card.editor_va_theme_label")}
+        </label>
+        <div class="hint">${this.t("room_card.editor_va_theme_hint")}</div>
+      </div>
     `;
 
     this.shadowRoot.getElementById("vacuum")?.addEventListener("change", (e) => {
@@ -128,6 +137,16 @@ class EufyDashboardCardEditor extends HTMLElement {
         this._fire({ ...this._config, [key]: e.target.checked });
       });
     }
+    // NOT in the loop above, and not via the bool() helper either. Those four default ON
+    // and are written as a plain boolean; va_theme defaults OFF and is written ONLY when
+    // true, so a card that never opted in carries no key at all and its stored config is
+    // byte-identical to one from before this option existed. `[key]: e.target.checked`
+    // would persist `va_theme: false` onto every dashboard that merely opened the editor.
+    this.shadowRoot.getElementById("va-theme")?.addEventListener("change", (e) => {
+      const next = { ...this._config };
+      if (e.target.checked) next.va_theme = true; else delete next.va_theme;
+      this._fire(next);
+    });
   }
 
   static getConfigElement() { return document.createElement(CARD_EDITOR); }
@@ -440,6 +459,20 @@ class EufyDashboardCard extends HTMLElement {
 
   _render() {
     applyDir(this, resolveLang(this._hass, this._config, this._langOverride));
+
+    /* Opt-in VA theme — see styles/card-theme.js. Painted on EVERY render so the card
+       tracks a theme edit, an HA theme switch, or the option being turned off again, and
+       called even when OFF because the writer clears by being handed nothing.
+       ABOVE the early return below: innerHTML="" clears the card's CHILDREN, while the
+       tokens live in the inline style of the HOST and outlive it. Below the return, a
+       card whose vacuum was deselected would sit empty still wearing the palette. */
+    applyVaThemeToCard(
+      this,
+      this._hass,
+      this._config?.vacuum_entity_id,
+      this._config?.va_theme === true,
+    );
+
     if (!this._config?.vacuum_entity_id) { this.shadowRoot.innerHTML = ""; return; }
 
     const vid = this._vacuumId();

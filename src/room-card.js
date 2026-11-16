@@ -332,24 +332,29 @@ class EufyRoomCard extends HTMLElement {
      ========================================================= */
 
   _render() {
-    if (!this._config?.vacuum_entity_id || this._config?.room_id == null) {
-      this.shadowRoot.innerHTML = "";
-      return;
-    }
-
     /* Opt-in VA theme, painted on EVERY render for the same reason the panel does it at
        the top of its own (main.js): it is what keeps the card tracking a theme edit, an
        HA theme switch, or the option being turned off again.
        CALLED EVEN WHEN THE OPTION IS OFF, deliberately -- the writer removes every
        registry token it is not given, so the disabled call is what UNDOES a previous
        paint and hands the card back to the HA theme. Returning early instead would
-       strand the last palette on the host until a reload. */
+       strand the last palette on the host until a reload.
+       ABOVE THE EARLY RETURN, and that is the load-bearing part. innerHTML="" clears
+       the card's CHILDREN; the tokens live in the inline style of the HOST, which
+       survives it. The vacuum-change handler fires {vacuum_entity_id, room_id:
+       undefined}, so changing vacuum takes this render down the empty branch -- and
+       below the return, that is an empty card still wearing the palette. [RCT-1] */
     applyVaThemeToCard(
       this,
       this._hass,
-      this._config.vacuum_entity_id,
-      this._config.va_theme === true,
+      this._config?.vacuum_entity_id,
+      this._config?.va_theme === true,
     );
+
+    if (!this._config?.vacuum_entity_id || this._config?.room_id == null) {
+      this.shadowRoot.innerHTML = "";
+      return;
+    }
 
     const sw        = this._targetSwitch();
     const swAttrs   = sw?.attrs ?? {};
