@@ -883,7 +883,7 @@ export const en = {
   "map.segment_hint_queue": "Tap to queue",
   "map.stale_badge_title": "The map couldn't be refreshed — showing the last known view.",  // Tooltip on the stale-map badge (RP-027's hold contract): explains WHY it's dimmed, not just that it is
   "map.stale_last_seen": "Last seen {value}",  // Stale-map badge text; {value} is an already-localized relative time like "3 hours ago"
-  "map.toggle_floor_texture": "Toggle floor textures",  // Button toggling the floor-texture map view: paints each room with its floor-type material (wood/tile/carpet…) instead of flat colors
+  "map.toggle_floor_texture": "Toggle VA-rendered floor",  // The ▨ button, beside ▦ map.toggle_va_render and deliberately phrased to pair with it: this paints the VA-rendered floor to scale (wood/tile/carpet…) instead of flat colours, and only appears when VA render is on. Was "Toggle floor textures", which collided with rooms.hide_map_textures — two different render paths, two different buttons, near-identical names. KEY LEFT ALONE: labels rename freely, keys need a migration.
   "map.toggle_va_render": "Toggle VA-rendered map",  // Button toggling the VA-rendered (integration-drawn) map vs live image; VA=Vacuum Agent, expand or keep as-is
   "map.upload": "Upload",
   "map.upload_failed": "Upload failed",
@@ -1599,7 +1599,7 @@ export const en = {
   "rooms.exclude_room_aria": "Exclude room {name}",
   "rooms.force_exact_order": "Force this exact order",  // Button enabling strict order: clean queued rooms one-by-one in the shown order (slower)
   "rooms.hide_companion": "Hide companion",
-  "rooms.hide_map_textures": "Hide map textures",
+  "rooms.hide_map_textures": "Hide room patterns",  // The SVG-polygon layer: fills each room SHAPE with a repeating pattern of its material. Not the VA-rendered floor (map.toggle_floor_texture) and not the cards (rooms.hide_room_card_textures). Key name predates the rename.
   "rooms.hide_room_card_textures": "Hide room-card textures",
   "rooms.hide_room_labels": "Hide room labels",
   "rooms.icon_size": "Icon size",
@@ -1660,7 +1660,7 @@ export const en = {
   "rooms.select_all": "Select All",
   "rooms.settings_adjusted": "Settings adjusted",
   "rooms.show_companion": "Show companion",
-  "rooms.show_map_textures": "Show map textures",
+  "rooms.show_map_textures": "Show room patterns",
   "rooms.show_room_card_textures": "Show room-card textures",
   "rooms.stall_capture_enable": "Turn on stall capture",
   "rooms.stall_capture_disable": "Turn off stall capture",

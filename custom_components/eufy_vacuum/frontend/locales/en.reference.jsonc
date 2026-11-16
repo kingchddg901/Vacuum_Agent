@@ -1664,7 +1664,7 @@
     "segment_hint_queue": "Tap to queue",
     "stale_badge_title": "The map couldn't be refreshed — showing the last known view.",  // Tooltip on the stale-map badge (RP-027's hold contract): explains WHY it's dimmed, not just that it is
     "stale_last_seen": "Last seen {value}",  // Stale-map badge text; {value} is an already-localized relative time like "3 hours ago"
-    "toggle_floor_texture": "Toggle floor textures",  // Button toggling the floor-texture map view: paints each room with its floor-type material (wood/tile/carpet…) instead of flat colors
+    "toggle_floor_texture": "Toggle VA-rendered floor",  // The ▨ button, beside ▦ map.toggle_va_render and deliberately phrased to pair with it: this paints the VA-rendered floor to scale (wood/tile/carpet…) instead of flat colours, and only appears when VA render is on. Was "Toggle floor textures", which collided with rooms.hide_map_textures — two different render paths, two different buttons, near-identical names. KEY LEFT ALONE: labels rename freely, keys need a migration.
     "toggle_va_render": "Toggle VA-rendered map",  // Button toggling the VA-rendered (integration-drawn) map vs live image; VA=Vacuum Agent, expand or keep as-is
     "upload": "Upload",
     "upload_failed": "Upload failed",
@@ -1943,7 +1943,7 @@
     "exclude_room_aria": "Exclude room {name}",
     "force_exact_order": "Force this exact order",  // Button enabling strict order: clean queued rooms one-by-one in the shown order (slower)
     "hide_companion": "Hide companion",
-    "hide_map_textures": "Hide map textures",
+    "hide_map_textures": "Hide room patterns",  // The SVG-polygon layer: fills each room SHAPE with a repeating pattern of its material. Not the VA-rendered floor (map.toggle_floor_texture) and not the cards (rooms.hide_room_card_textures). Key name predates the rename.
     "hide_room_card_textures": "Hide room-card textures",
     "hide_room_labels": "Hide room labels",
     "icon_size": "Icon size",
@@ -2002,7 +2002,7 @@
     "select_all": "Select All",
     "settings_adjusted": "Settings adjusted",
     "show_companion": "Show companion",
-    "show_map_textures": "Show map textures",
+    "show_map_textures": "Show room patterns",
     "show_room_card_textures": "Show room-card textures",
     "stall_capture_enable": "Turn on stall capture",
     "stall_capture_disable": "Turn off stall capture",
