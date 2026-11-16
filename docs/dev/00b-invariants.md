@@ -1556,6 +1556,37 @@ individual write is legitimate in isolation; the defect is the set of them.
 > the separate rule that a rejection must be visible; this one is that a rejection must not
 > leak into the baseline. Two rules, one guard, worth keeping apart — a site can satisfy
 > either while breaking the other.
+### `INYK0JCG` — the card-surface override token is NEVER declared; its absence IS the mechanism
+
+`--evcc-surface-card-override` must not be declared anywhere — not in CSS, not as
+`initial`, not in the theme-token registry. An undeclared custom property is the only kind
+that inherits from the document, and inheriting from the document is the entire reason a
+Home Assistant theme can reach it. Declaring it closes the door it exists to open, and the
+symptom is indistinguishable from the bug it fixed: a theme author's override silently
+doing nothing.
+
+- **Why:** the card tokens are a DERIVATION GRAPH — eight Home Assistant variables read as
+  roots, 29 surfaces computed from them. A value an element computes for itself always beats
+  one it inherits, so deriving a token is the same act as closing it. That derivation is not
+  optional; it is the issue #65 repair, without which every tint was a hardcoded white-alpha
+  that rendered invisible on a light theme. The full reasoning sits at the anchor site in
+  `src/styles/foundation.js#INYK0JCG`, and the user-facing half is
+  [20 — Dashboard & Room cards](../user-guide/20-dashboard-and-room-cards.md).
+- **Enforced:** `[SCO-2]` in `src/styles/surface-card-override.test.mjs`, which walks every
+  `.js` under `src/` for a declaration of the token. `[SCO-5]` additionally pins the shipped
+  override surface at exactly one token, so widening it is a deliberate edit rather than an
+  accretion.
+- **Cite `INYK0JCG`** from any future leaf override, which follows the same one-line rule:
+  `var(--evcc-<leaf>-override, <the existing derivation>)`.
+
+> **`check-styles.mjs` cannot see any of this, and that is why the gate is a test.** Its
+> `TOKEN_REF` matches `var(--evcc-surface-card-override, ...)` perfectly well, but
+> `LINT_TARGETS` is built by filtering out `TOKEN_DEF_FILES`, which is exactly
+> `{"foundation.js"}` — literals there are token defaults rather than un-tokenized colours.
+> So the one file this mechanism lives in is the one file token-lint does not read, while it
+> still reports "every `--evcc-*` reference resolves", truthfully, about everything it looked
+> at. A typo in the override name would ship green.
+
 ## Rules with no code site — `EN`
 
 > **⚠ RECLASSIFIED 2026-08-22 — these three were `PN` until now.** `PN` means what the

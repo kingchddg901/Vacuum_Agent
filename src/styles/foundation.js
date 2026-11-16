@@ -165,7 +165,17 @@ export const foundationTokens = `
     /* Surfaces */
     /* anchor: CNRE7F7B */
     --evcc-surface-base:   var(--card-background-color, #1c2127);
-    /* anchor: RN6KQWT2  THE ONE LEAF A HOME ASSISTANT THEME CAN OVERRIDE.
+    /* anchor: INYK0JCG  THE ONE LEAF A HOME ASSISTANT THEME CAN OVERRIDE.
+       IN, NOT RN, AND THE FIRST CUT GOT THAT WRONG. RN is replica notation -- one
+       rule deliberately implemented in MORE THAN ONE PLACE, whose copies must agree
+       and which must be registered in docs/dev/00c-replicas.md. This rule lives in
+       exactly one place, so the RN token declared a replica set with one primary and
+       zero replicas; tests/test_replica_ratchet.py failed it twice, correctly, and
+       it reached CI because "no .py changed, so the python suite still stands" is
+       FALSE -- that ratchet reads source of any language, this file included.
+       IN is the right class: an invariant the system must preserve across refactors,
+       and IN's discipline is naming the input that reddens it, which is [SCO-2].
+
        NO BACKTICKS IN THIS COMMENT -- it lives inside the foundationTokens
        TEMPLATE LITERAL, so one backtick terminates the string and every style
        module fails to import. Cost: one check:styles cycle while writing it.
@@ -197,7 +207,7 @@ export const foundationTokens = `
        override. That is the replica-set shape this project keeps paying for. One
        line here cannot be partially applied. The seam generalises by the same
        one-line rule if a second leaf ever earns it; the shipped surface stays one.
-       Gated by SCO-* in styles/surface-card-override.test.mjs. */
+       Gated by SCO-* in styles/surface-card-override.test.mjs (anchor INYK0JCG). */
     --evcc-surface-card:   var(--evcc-surface-card-override, var(--evcc-surface-base));
 
     /* anchor: RNS5JWBV  the OVERLAY INK -- the one question every tinted surface
