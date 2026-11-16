@@ -6,7 +6,7 @@
 
 > Generated reference — part of the [Theme System](../frontend/theme-system.md) docs. Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).
 
-The themeable control-surface tokens exposed in the theme editor: **425 tokens** across **26 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; **Default** is the value the card ships (the reverse lookup: scan a group for the colour you need instead of inventing one); bounded scalars list their slider range.
+The themeable control-surface tokens exposed in the theme editor: **427 tokens** across **27 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; **Default** is the value the card ships (the reverse lookup: scan a group for the colour you need instead of inventing one); bounded scalars list their slider range.
 
 The 5 companion sub-groups share one identical 14-token shape — only **Cat** is listed in full; Dog, Fox, Raccoon, Parrot, Snake repeat it with their own `-<animal>-` key segment.
 
@@ -116,6 +116,13 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-room-grid-columns` | Room Grid Columns | size | — |  |
 | `--evcc-room-grid-gap` | Room Grid Gap | size | `var(--evcc-grid-gap)` |  |
 | `--evcc-room-grid-min` | Room Grid Min | size | `240px` |  |
+
+## Dashboard Cards  ·  2
+
+| Token | Controls | Type | Default | Range |
+|---|---|---|---|---|
+| `--evcc-card-frame-border-width` | Frame Border Width | size | — | 0–8 step 0.5 |
+| `--evcc-card-frame-shadow` | Frame Shadow | shadow | — |  |
 
 ## Map  ·  34
 

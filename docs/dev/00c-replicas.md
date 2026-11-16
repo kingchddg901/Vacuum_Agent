@@ -475,6 +475,101 @@ maintainer.
 
 ---
 
+### `RNA0TM68` — how a user-added card draws its own frame · **3 copies**
+
+One rule — *how the outer edge of a card the user adds to their dashboard is drawn* —
+written out three times, because each card frames itself with a different mechanism.
+
+| Copy | Frames with | Spells the rule as |
+|---|---|---|
+| `src/room-card.js` `:host` | Home Assistant's `<ha-card>` element | `--ha-card-*` custom properties |
+| `src/cards/dashboard-card.js` `.card` | a plain `div` | ordinary CSS properties |
+| `src/cards/profile-card.js` `.evcc-pcard` | a plain `div` | ordinary CSS properties |
+
+**Not extractable.** Unifying them would mean making two of the three render an `ha-card`
+they deliberately do not use. This is coordination, not extraction.
+
+**The absence is load-bearing in one copy.** `box-shadow` was *declared* `none` only in
+`room-card.js`; the other two declared nothing at all, and a `div`'s initial `box-shadow`
+is already `none`. So the shipped state was 1 declaration + 2 absences that rendered
+identically — and a fix that edited only the declaration would have given a shadow control
+that moved one card of three, passing every test.
+
+**What the set cost before it was recorded.** Issue #83: a user set
+`ha-card-border-width` and `ha-card-box-shadow` in their Home Assistant theme and neither
+moved. Measured in Chromium against the real stylesheet — **all five** `--ha-card-*` names
+are closed on the room card, because a value an element declares always beats one it
+inherits. Three of the five (background, radius, border-colour) were nonetheless reachable
+through their upstream `--evcc-*` tokens, and two were hardcoded literals, with nothing in
+the source distinguishing the two cases. The reporter had no way to tell which of their
+lines should have worked.
+
+**A cycle hid inside the same block.** `--evcc-radius-card` → `--radius` →
+`--ha-card-border-radius` all landed on one element, so CSS discarded all three whole and
+each computed to the empty string. The card still looked right because `ha-card`'s own
+fallback is also 12px, so the documented `ha-card-border-radius` input reached nothing,
+silently, on one of three cards. Deleting the cyclic declaration is **not** the repair: it
+fixes the Home Assistant path and breaks the Vacuum Agent one. Measured, four paths:
+
+| | HA sets 24px | VA sets 30px | neither | both (VA must win) |
+|---|---|---|---|---|
+| shipped | **12px** ✗ | 30px | 12px | 30px |
+| delete the declaration | 24px | **12px** ✗ | 12px | **24px** ✗ |
+| style the `ha-card` element | 24px | 30px | 12px | 30px |
+
+**Declared at** `src/theme-tokens/cards.js`, the shared artifact the three copies revolve
+around — it is where a new frame token is minted, and minting one is the act that has to
+send you to all three. Pinned by `[CFR-*]` in `src/cards/card-frame.test.mjs`, which goes
+red if any copy stops reading a frame token, and if the radius cycle is reintroduced.
+
+Recorded 2026-11-16, at the fix.
+
+---
+
+### `RNN1M4G1` — the card chip · **2 copies**
+
+`.chip` in `src/room-card.js` and in `src/cards/dashboard-card.js`. Both mirror
+`.evcc-chip` in `src/styles/foundation.js`, which is the canonical rule and the one the
+31 `--evcc-chip-*` tokens were written for.
+
+**Two copies, not three.** The profile card has no chips. Do not "complete" this set
+there — adding chips to a card that has no use for them is the failure mode a register
+like this can cause if it is read as a checklist rather than a map.
+
+**What it cost.** The Chips group holds 31 editor tokens and the cards read **zero of
+them**. Measured across the three cards: 17 of 425 registry tokens read in total, Chips
+0/31, Room Cards 0/13, Map 0/34, Queue 0/41, Modals 0/36. So a user who moved "Chip
+Padding" in the theme editor changed the panel and nothing on their own dashboard, with
+no error and nothing to tell them why. The controls existed, were labelled correctly, and
+were wired to a different surface than their name implied.
+
+**Why no gate caught it.** `check-styles.mjs` lints all three cards, but `COLOR_PROP`
+matches colour properties only and additionally requires a colour *literal* in the value.
+`border: 1px solid var(--border)` passes it; `padding`, `gap`, `border-radius`,
+`font-size`, `font-weight` and `box-shadow` are invisible to it. The cards' colours are
+100% tokenized and their geometry was 62% hardcoded, and that is the whole explanation:
+one half has a ratchet and the other has none.
+
+**The fallbacks are the token defaults, not the old literals.** That is the substance of
+the change rather than a detail — it is what makes one chip token move the panel and both
+cards identically. It is visible: a chip is **4.6px wider and 5px shorter** (padding
+`5px 12px` → `5px 14px`, font-size `0.80rem` → `0.82rem`, plus the `min-height: 24px` and
+`line-height: 1` the canonical rule carries). Rendered side by side before the call.
+
+**A shipped bug went with it.** Both copies used a bare `.chip:hover`, which has the same
+specificity as `.chip.active` and came later in both files — so hovering a *selected*
+chip repainted it with the neutral hover background and it read as deselected under the
+cursor. The canonical rule has always guarded this with `:not(.active)`.
+
+**Declared at** `src/room-card.js`, the copy whose comment carries the reasoning. Pinned
+by `[CHP-1..3]` in `src/cards/card-frame.test.mjs`: `[CHP-1]` asserts all fifteen token
+reads in both copies, `[CHP-2]` catches a literal left *beside* a `var()` (which `[CHP-1]`
+passes on), and `[CHP-3]` the hover guard.
+
+Recorded 2026-11-16, at the fix.
+
+---
+
 ## Finding sets: four ways to ask, and three axes to judge
 
 Derived 2026-08-18 and **tested before being written down** — five mixed candidates run

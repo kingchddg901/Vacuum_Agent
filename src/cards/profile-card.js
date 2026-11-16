@@ -46,10 +46,18 @@ const CARD_CSS = `
     --radius:        var(--evcc-radius-card, 12px);
     --text-on-accent: var(--evcc-text-on-accent, #fff);
   }
+  /* REPLICA RNA0TM68 -- the card FRAME. Twins: src/room-card.js (as --ha-card-*,
+     because that one frames with ha-card) and src/cards/dashboard-card.js (.card).
+     Frame border-width and shadow are the two properties that were hardcoded here
+     while background, radius and border-colour were already themeable; see
+     src/theme-tokens/cards.js. The var() fallbacks ARE the shipped defaults -- the
+     tokens are deliberately undeclared anywhere, so a Home Assistant theme setting
+     them in YAML inherits in and wins, exactly as --evcc-surface-card-override does. */
   .evcc-pcard {
     background: var(--surface);
-    border: 1px solid var(--border);
+    border: var(--evcc-card-frame-border-width, 1px) solid var(--border);
     border-radius: var(--radius);
+    box-shadow: var(--evcc-card-frame-shadow, none);
     padding: 16px;
     color: var(--text-primary);
   }

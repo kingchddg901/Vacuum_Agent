@@ -45,6 +45,7 @@ import { SURFACE_TOKENS        } from "./surfaces.js";
 import { BORDER_TOKENS         } from "./borders.js";
 import { CHIP_TOKENS           } from "./chips.js";
 import { ROOM_CARD_TOKENS      } from "./room-cards.js";
+import { DASHBOARD_CARD_TOKENS } from "./cards.js";
 import { MAP_TOKENS            } from "./map.js";
 import { FLOOR_TEXTURE_TOKENS  } from "./floor-textures.js";
 import {
@@ -79,6 +80,7 @@ const STATIC_BEFORE_ANIMALS = [
   BORDER_TOKENS,
   CHIP_TOKENS,
   ROOM_CARD_TOKENS,
+  DASHBOARD_CARD_TOKENS,
   MAP_TOKENS,
   FLOOR_TEXTURE_TOKENS,
   QUEUE_ORDERING_TOKENS,

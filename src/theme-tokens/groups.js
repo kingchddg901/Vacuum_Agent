@@ -34,6 +34,9 @@ export const STATIC_GROUPS_BEFORE_ANIMALS = [
   "Borders & Shadows",
   "Chips",
   "Room Cards",
+  // The three cards a user adds to their OWN dashboard. Distinct from "Room Cards"
+  // and "Cards & Surfaces" above, which both style the panel -- see cards.js.
+  "Dashboard Cards",
   "Map",
   "Floor Textures",
   "Floor Textures — Tile",

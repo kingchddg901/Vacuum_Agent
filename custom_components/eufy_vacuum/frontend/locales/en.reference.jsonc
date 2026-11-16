@@ -402,6 +402,8 @@
       "evcc_text_strong": "Text Strong",
       "evcc_bg_input": "BG Input",
       "evcc_card_bg": "Card BG",
+      "evcc_card_frame_border_width": "Frame Border Width",  // Dashboard Cards group: thickness of the outer edge of a user-added card
+      "evcc_card_frame_shadow": "Frame Shadow",  // Dashboard Cards group: CSS box-shadow on the outer edge of a user-added card
       "evcc_card_gap": "Card Gap",
       "evcc_card_min_height": "Card Min Height",
       "evcc_card_padding": "Card Padding",
@@ -826,6 +828,7 @@
       "borders_shadows": "Borders & Shadows",
       "chips": "Chips",
       "room_cards": "Room Cards",
+      "dashboard_cards": "Dashboard Cards",  // theme editor group: the cards a user adds to their own dashboard, as opposed to 'Room Cards' which styles the panel's room tiles
       "map": "Map",
       "floor_textures": "Floor Textures",
       "floor_textures_tile": "Tile",

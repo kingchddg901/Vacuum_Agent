@@ -2349,6 +2349,8 @@ export const en = {
   "vocab.theme_token.evcc_text_strong": "Text Strong",
   "vocab.theme_token.evcc_bg_input": "BG Input",
   "vocab.theme_token.evcc_card_bg": "Card BG",
+  "vocab.theme_token.evcc_card_frame_border_width": "Frame Border Width",  // Dashboard Cards group: thickness of the outer edge of a user-added card
+  "vocab.theme_token.evcc_card_frame_shadow": "Frame Shadow",  // Dashboard Cards group: CSS box-shadow on the outer edge of a user-added card
   "vocab.theme_token.evcc_card_gap": "Card Gap",
   "vocab.theme_token.evcc_card_min_height": "Card Min Height",
   "vocab.theme_token.evcc_card_padding": "Card Padding",
@@ -2751,6 +2753,7 @@ export const en = {
   "vocab.theme_group.borders_shadows": "Borders & Shadows",
   "vocab.theme_group.chips": "Chips",
   "vocab.theme_group.room_cards": "Room Cards",
+  "vocab.theme_group.dashboard_cards": "Dashboard Cards",  // theme editor group: the cards a user adds to their own dashboard, as opposed to 'Room Cards' which styles the panel's room tiles
   "vocab.theme_group.map": "Map",
   "vocab.theme_group.floor_textures": "Floor Textures",
   "vocab.theme_group.floor_textures_tile": "Tile",

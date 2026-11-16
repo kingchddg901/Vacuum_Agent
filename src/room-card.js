@@ -8,7 +8,8 @@ import { translate, resolveLang, ensureLocalesLoaded, applyDir } from "./i18n/in
 import { foundationTokens } from "./styles/foundation.js";
 import {
   esc, vocab, roomSwitchesFor, adapterOptions, adapterRange, sliderRow, SLIDER_ROW_CSS, committedRoomFields, isMopMode, canonicalCleanMode, stripNull, defineCard,
-  renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang, GRID_ROOM_CARD } from "./cards/_shared.js";
+  renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang, GRID_ROOM_CARD,
+  registerCard } from "./cards/_shared.js";
 import { roomSuggestion } from "./cards/card-suggestions.js";
 // Opt-in VA theming. From styles/card-theme.js, which reaches the token writer through
 // styles/apply-tokens.js rather than styles/index.js -- the latter imports every
@@ -442,17 +443,44 @@ class EufyRoomCard extends HTMLElement {
              to set. Driving ha-card's own variables from the evcc tokens keeps
              the default look identical while letting a theme override it.
              NB: no backticks in here — this block lives in a JS template. */
+          /* REPLICA RNA0TM68 -- the card FRAME. Twins: src/cards/dashboard-card.js
+             (.card) and src/cards/profile-card.js (.evcc-pcard), which frame with a
+             plain div and so spell the same rule as ordinary properties. Primary and
+             reasoning: src/theme-tokens/cards.js. */
           --ha-card-background:    var(--surface);
-          --ha-card-border-radius: var(--radius);
-          --ha-card-border-width:  1px;
+          --ha-card-border-width:  var(--evcc-card-frame-border-width, 1px);
           --ha-card-border-color:  var(--border);
-          --ha-card-box-shadow:    none;
+          --ha-card-box-shadow:    var(--evcc-card-frame-shadow, none);
+
+          /* NB: --ha-card-border-radius is deliberately NOT declared here. It used to
+             be, as var(--radius), and that closed a three-property CYCLE:
+               foundation.js  --evcc-radius-card:      var(--ha-card-border-radius, 12px)
+               here           --radius:                var(--evcc-radius-card, 12px)
+               here           --ha-card-border-radius: var(--radius)
+             All three land on this one element, so CSS discarded all three whole and
+             every one computed to the empty string. The card still LOOKED right only
+             because ha-card's own internal fallback is also 12px -- which is why it
+             survived: the documented ha-card-border-radius theme input reached
+             nothing on this card, silently, and the symptom was invisible.
+             Measured in Chromium: HA theme sets 24px -> painted 12px.
+
+             Deleting the declaration alone is NOT the fix. That repairs the HA path and
+             BREAKS the VA one: with no --radius consumer the frame reads
+             --ha-card-border-radius directly, so a VA theme's Radius Card stops moving
+             the frame, and when both are set HA wins where VA should. Measured: VA 30px
+             -> painted 12px, and HA 24px + VA 30px -> painted 24px.
+
+             Styling the ha-card ELEMENT instead keeps one one-way chain
+             (--ha-card-border-radius -> --evcc-radius-card -> --radius -> the frame) and
+             an outer-tree rule beats the inner :host, so all four paths hold: HA alone,
+             VA alone, neither, and both-with-VA-winning. Gated by [CFR-*]. */
         }
 
         ha-card {
-          /* Clip the header/footer to the rounded corners. Everything else the
-             frame needs comes from the --ha-card-* variables above. */
+          /* Clip the header/footer to the rounded corners, and own the frame radius --
+             see the cycle note above for why this is a property and not a variable. */
           overflow: hidden;
+          border-radius: var(--radius);
         }
 
         /* ---- header ---- */
@@ -526,26 +554,53 @@ class EufyRoomCard extends HTMLElement {
           text-transform: uppercase; letter-spacing: 0.05em;
         }
 
-        .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        /* anchor: RNN1M4G1  the card CHIP -- the replica set.
+           One rule in two places: here and src/cards/dashboard-card.js. The profile card
+           has no chips, so this set is 2 copies, not 3 -- do not "complete" it there.
+           Every declaration mirrors .evcc-chip in src/styles/foundation.js, whose 31
+           --evcc-chip-* tokens these cards did not read at ALL until now: measured, the
+           three cards read 17 of 425 registry tokens, and the Chips group's score was
+           0 of 31. So a user moving Chip Padding in the theme editor changed the panel
+           and nothing on their own dashboard.
+           The FALLBACKS are deliberately the token defaults rather than what these cards
+           used to hardcode, because the whole point is that one chip token now moves the
+           panel and the cards identically. That is a visible change: a chip is 4.6px
+           wider and 5px shorter, from padding 5px 12px -> 5px 14px, font-size 0.80 ->
+           0.82rem, and the min-height + line-height:1 that the canonical rule carries. */
+        .chips { display: flex; flex-wrap: wrap; gap: var(--evcc-chip-gap, 6px); }
 
         .chip {
-          padding: 5px 12px;
-          border-radius: 999px;
-          border: 1px solid var(--border);
-          background: var(--surface-subtle);
-          color: var(--text-muted);
-          font-size: 0.80rem; font-weight: 500;
+          display: inline-flex; align-items: center; justify-content: center;
+          min-height:    var(--evcc-chip-height, 24px);
+          padding:       var(--evcc-chip-padding, 5px 14px);
+          border-radius: var(--evcc-chip-radius, 999px);
+          border: 1px solid var(--evcc-chip-border, var(--evcc-border-default));
+          background:    var(--evcc-chip-bg, var(--evcc-surface-input));
+          color:         var(--evcc-chip-text, var(--evcc-text-secondary));
+          font-size:     var(--evcc-chip-font-size, 0.82rem);
+          font-weight:   var(--evcc-chip-font-weight, 500);
+          line-height: 1;
           cursor: pointer;
           transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
           -webkit-tap-highlight-color: transparent;
         }
 
-        .chip:hover { background: var(--evcc-surface-action-hover, rgba(255,255,255,0.08)); color: var(--text-primary); }
+        /* :not(.active) matches the canonical rule and fixes a real bug on the way: the
+           old selector was a bare .chip:hover, so hovering a SELECTED chip repainted it
+           with the neutral hover background and it read as deselected under the cursor. */
+        .chip:hover:not(.active) {
+          background:   var(--evcc-chip-hover-bg, var(--evcc-surface-panel));
+          color:        var(--evcc-chip-hover-text, var(--evcc-text-primary));
+          border-color: var(--evcc-chip-hover-border, var(--evcc-border-strong));
+        }
 
         .chip.active {
-          background:   color-mix(in srgb, var(--accent) 18%, transparent);
-          border-color: color-mix(in srgb, var(--accent) 50%, transparent);
-          color:        color-mix(in srgb, var(--accent) 90%, white);
+          background:   var(--evcc-chip-active-bg,
+                          color-mix(in srgb, var(--evcc-accent) 18%, transparent));
+          color:        var(--evcc-chip-active-text, var(--evcc-accent));
+          border-color: var(--evcc-chip-active-border,
+                          color-mix(in srgb, var(--evcc-accent) 40%, transparent));
+          font-weight: 600;
         }
         ${SLIDER_ROW_CSS}
 
@@ -793,11 +848,20 @@ class EufyRoomCard extends HTMLElement {
 
 defineCard(ROOM_CARD_NAME, EufyRoomCard);
 
-window.customCards = window.customCards || [];
-window.customCards.push({
+// registerCard, NOT a bare window.customCards.push. This file ships in BOTH bundles --
+// the panel bundle (src/all-cards.js) and the global one injected on every page
+// (src/cards-standalone.js, via add_extra_module_url) -- exactly as the defineCard note
+// above describes for custom elements. A bare push has no idempotency guard, so opening
+// the panel on a dashboard listed this card TWICE in Home Assistant's picker. Its two
+// siblings already used this helper; this one was the odd case out.
+// `preview: true` asks HA to render the card in that picker. Both siblings set it and
+// this card did not, so the one card preview that already ships was switched off for
+// the room card specifically. Gated by [CFR-*].
+registerCard({
   type:        ROOM_CARD_NAME,
   name:        "Eufy Room Card",
   description: "Single-room settings and quick-start card for managed vacuums.",
+  preview:     true,
   // HA 2026.6+ "By entity" card picker: suggest this card (pre-filled with the
   // vacuum's first room) when the user picks one of OUR managed vacuums.
   getEntitySuggestion: (hass, entityId) => roomSuggestion(hass, entityId, ROOM_CARD_NAME),

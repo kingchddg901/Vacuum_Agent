@@ -101,6 +101,10 @@ const SLIDER_CONFIG = {
   "Borders & Shadows": { min: 0, max: 32, step: 1 },
   "Chips": { min: 20, max: 48, step: 1 },
   "Room Cards": { min: 0, max: 32, step: 1 },
+  // Frame geometry, not panel spacing: a card border lives in single digits. Both
+  // of this group's tokens declare their own range, so this entry is the net for
+  // the NEXT one added -- without it a new scalar here inherits {0,64,1}.
+  "Dashboard Cards": { min: 0, max: 8, step: 0.5 },
   "Floor Textures":              { min: 0, max: 1, step: 0.01 },
   "Floor Textures — Tile":       { min: 0, max: 1, step: 0.01 },
   "Floor Textures — Wood":       { min: 0, max: 1, step: 0.01 },

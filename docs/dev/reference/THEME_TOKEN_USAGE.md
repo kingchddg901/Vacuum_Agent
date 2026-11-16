@@ -8,15 +8,15 @@
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 
-- Catalog **425** · consumer `var()` uses **2390**
-- **277** with a STATIC consumer · **148** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
+- Catalog **427** · consumer `var()` uses **2441**
+- **279** with a STATIC consumer · **148** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
 - `var()` → non-catalog tokens **14** · dynamic `var(--evcc-…${…})` sites **3**
 
 > **A token with no STATIC consumer is not dead.** This tracer is a regex scan and cannot follow a `var()` whose name is built at runtime, so 148 live tokens would otherwise read as rot — and deleting them would break theming for every animal, every floor material and the whole room palette. The families that construct their names:
 > - **98** `animal` — `src/theme-tokens/animals.js` builds `--evcc-animal-${animal}-${suffix}`; consumed in `animal-svg/`
 > - **38** `floor-material` — `src/renderers/floor-texture-surface.js` and `src/bindings/map.js` build `--evcc-floor-${type}-…` from the material key
 > - **12** `room-fill` — `src/cards/map-room-color.js` — `roomFillTokenName(i)` builds `--evcc-room-fill-N`, 1-based and wrapping at 12 (contract pinned by MRC-1..MRC-7)
-- **Token CSS coverage 98.8%** — 1440/1458 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
+- **Token CSS coverage 98.8%** — 1442/1460 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
 
 ---
 
@@ -26,8 +26,10 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py
 - src/cards/_shared.js (color)
 - src/cards/dashboard-card.js (--accent)
+- src/cards/dashboard-card.js
 - src/cards/profile-card.js (--accent)
 - src/room-card.js (--accent)
+- src/room-card.js
 - src/styles/external-jobs.js
 - src/styles/external-jobs.js (color)
 - src/styles/foundation.js
@@ -145,8 +147,10 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py
 - src/cards/_shared.js (color)
 - src/cards/dashboard-card.js (--text-primary)
+- src/cards/dashboard-card.js
 - src/cards/profile-card.js (--text-primary)
 - src/room-card.js (--text-primary)
+- src/room-card.js
 - src/styles/base-station.js (color)
 - src/styles/external-jobs.js (color)
 - src/styles/foundation.js
@@ -184,6 +188,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-text-secondary`** — Text Secondary · default `var(--secondary-text-color, rgba(240,242,245,0.72))` src/styles/foundation.js, src/styles/modal-host.js
 - custom_components/eufy_vacuum/themes/preloaded.py
+- src/cards/dashboard-card.js
+- src/room-card.js
 - src/styles/base-station.js (color)
 - src/styles/external-jobs.js (color)
 - src/styles/foundation.js
@@ -257,8 +263,6 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-surface-action-hover`** — Surface Action Hover · default `color-mix(in srgb, var(--evcc-overlay-ink) 18%, transparent)` src/styles/foundation.js
 - src/cards/_shared.js (background)
-- src/cards/dashboard-card.js (background)
-- src/room-card.js (background)
 - src/styles/learning.js (background)
 - src/styles/map.js (background)
 - src/styles/setup.js (background)
@@ -292,7 +296,9 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-surface-input`** — Surface Input · default `color-mix(in srgb, var(--evcc-overlay-ink) 6%, transparent)` src/styles/foundation.js, src/styles/modal-host.js
 - custom_components/eufy_vacuum/themes/preloaded.py
+- src/cards/dashboard-card.js
 - src/cards/profile-card.js (--surface-input)
+- src/room-card.js
 - src/styles/external-jobs.js (background)
 - src/styles/foundation.js
 - src/styles/foundation.js (--evcc-bg-input)
@@ -325,6 +331,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-surface-panel`** — Surface Panel · default `color-mix(in srgb, var(--evcc-surface-base) 85%, var(--evcc-overlay-ink) 15%)` src/styles/foundation.js, src/styles/modal-host.js
 - custom_components/eufy_vacuum/themes/preloaded.py
+- src/cards/dashboard-card.js
+- src/room-card.js
 - src/styles/base-station.js (background)
 - src/styles/external-jobs.js (background)
 - src/styles/foundation.js
@@ -400,8 +408,10 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py
 - src/cards/_shared.js
 - src/cards/dashboard-card.js (--border)
+- src/cards/dashboard-card.js
 - src/cards/profile-card.js (--border)
 - src/room-card.js (--border)
+- src/room-card.js
 - src/styles/base-station.js
 - src/styles/external-jobs.js
 - src/styles/foundation.js
@@ -437,6 +447,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-border-strong`** — Border Strong · default `color-mix(in srgb, var(--evcc-overlay-ink) 18%, transparent)` src/styles/foundation.js, src/styles/modal-host.js
 - custom_components/eufy_vacuum/themes/preloaded.py
+- src/cards/dashboard-card.js
+- src/room-card.js
 - src/styles/base-station.js (border-color)
 - src/styles/foundation.js
 - src/styles/foundation.js (--evcc-chip-hover-border)
@@ -506,21 +518,31 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 ## Chips  ·  31 static / 31
 
 **`--evcc-chip-active-bg`** — Chip Active BG · default src/styles/rooms.js
+- src/cards/dashboard-card.js (background)
+- src/room-card.js (background)
 - src/styles/foundation.js (background)
 
 **`--evcc-chip-active-border`** — Chip Active Border · default src/styles/rooms.js
+- src/cards/dashboard-card.js (border-color)
+- src/room-card.js (border-color)
 - src/styles/foundation.js (border-color)
 
 **`--evcc-chip-active-text`** — Chip Active Text · default src/styles/rooms.js
+- src/cards/dashboard-card.js (color)
+- src/room-card.js (color)
 - src/styles/foundation.js (color)
 
 **`--evcc-chip-bg`** — Chip BG · default `var(--evcc-surface-input)` src/styles/foundation.js, src/styles/modal-host.js, src/styles/order.js, src/styles/rooms.js
+- src/cards/dashboard-card.js (background)
+- src/room-card.js (background)
 - src/styles/foundation.js (background)
 - src/styles/maintenance.js (background)
 - src/styles/rooms.js
 - src/styles/theme-preview.js
 
 **`--evcc-chip-border`** — Chip Border · default `var(--evcc-border-default)` src/styles/foundation.js, src/styles/modal-host.js, src/styles/order.js, src/styles/rooms.js
+- src/cards/dashboard-card.js
+- src/room-card.js
 - src/styles/foundation.js
 - src/styles/maintenance.js
 - src/styles/theme-preview.js
@@ -538,31 +560,45 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js (color)
 
 **`--evcc-chip-font-size`** — Chip Font Size · default src/styles/modal-host.js, src/styles/order.js, src/styles/rooms.js
+- src/cards/dashboard-card.js (font-size)
+- src/room-card.js (font-size)
 - src/styles/foundation.js (font-size)
 
 **`--evcc-chip-font-weight`** — Chip Font Weight · default src/styles/modal-host.js, src/styles/order.js, src/styles/rooms.js
+- src/cards/dashboard-card.js (font-weight)
+- src/room-card.js (font-weight)
 - src/styles/foundation.js (font-weight)
 
 **`--evcc-chip-gap`** — Chip Gap · default —
+- src/cards/dashboard-card.js (gap)
+- src/room-card.js (gap)
 - src/styles/foundation.js (gap)
 - src/styles/order.js (gap)
 - src/styles/rooms.js (gap)
 
 **`--evcc-chip-height`** — Chip Height · default `24px` src/styles/foundation.js, src/styles/modal-host.js, src/styles/order.js, src/styles/rooms.js
+- src/cards/dashboard-card.js (min-height)
+- src/room-card.js (min-height)
 - src/styles/foundation.js (min-height)
 - src/styles/maintenance.js (min-height)
 
 **`--evcc-chip-hover-bg`** — Chip Hover BG · default `var(--evcc-surface-panel)` src/styles/foundation.js, src/styles/modal-host.js
+- src/cards/dashboard-card.js (background)
+- src/room-card.js (background)
 - src/styles/foundation.js (background)
 - src/styles/order.js (background)
 - src/styles/theme-preview.js (background)
 
 **`--evcc-chip-hover-border`** — Chip Hover Border · default `var(--evcc-border-strong)` src/styles/foundation.js, src/styles/modal-host.js
+- src/cards/dashboard-card.js (border-color)
+- src/room-card.js (border-color)
 - src/styles/foundation.js (border-color)
 - src/styles/order.js (border-color)
 - src/styles/theme-preview.js (border-color)
 
 **`--evcc-chip-hover-text`** — Chip Hover Text · default `var(--evcc-text-primary)` src/styles/foundation.js, src/styles/modal-host.js
+- src/cards/dashboard-card.js (color)
+- src/room-card.js (color)
 - src/styles/foundation.js (color)
 - src/styles/order.js (color)
 - src/styles/theme-preview.js (color)
@@ -595,10 +631,14 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/order.js
 
 **`--evcc-chip-padding`** — Chip Padding · default `5px 14px` src/styles/foundation.js, src/styles/modal-host.js, src/styles/order.js, src/styles/rooms.js
+- src/cards/dashboard-card.js (padding)
+- src/room-card.js (padding)
 - src/styles/foundation.js (padding)
 - src/styles/maintenance.js (padding)
 
 **`--evcc-chip-radius`** — Chip Radius · default `999px` src/styles/foundation.js, src/styles/modal-host.js
+- src/cards/dashboard-card.js (border-radius)
+- src/room-card.js (border-radius)
 - src/styles/foundation.js (border-radius)
 - src/styles/maintenance.js (border-radius)
 - src/styles/modal-host.js (border-radius)
@@ -616,6 +656,8 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/theme-preview.js (color)
 
 **`--evcc-chip-text`** — Chip Text · default `var(--evcc-text-secondary)` src/styles/foundation.js, src/styles/modal-host.js, src/styles/order.js, src/styles/rooms.js
+- src/cards/dashboard-card.js (color)
+- src/room-card.js (color)
 - src/styles/foundation.js (color)
 - src/styles/maintenance.js (color)
 - src/styles/theme-preview.js
@@ -682,6 +724,18 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-room-grid-min`** — Room Grid Min · default `240px` src/styles/layout.js
 - src/styles/layout.js
+
+## Dashboard Cards  ·  2 static / 2
+
+**`--evcc-card-frame-border-width`** — Frame Border Width · default —
+- src/cards/dashboard-card.js (border)
+- src/cards/profile-card.js (border)
+- src/room-card.js (--ha-card-border-width)
+
+**`--evcc-card-frame-shadow`** — Frame Shadow · default —
+- src/cards/dashboard-card.js (box-shadow)
+- src/cards/profile-card.js (box-shadow)
+- src/room-card.js (--ha-card-box-shadow)
 
 ## Map  ·  22 static + 12 dynamic / 34
 

@@ -1340,7 +1340,9 @@ const CARD_CSS = `
     --status-success-bg:   var(--evcc-surface-success, rgba(76,175,110,0.12));
     --status-success-line: var(--evcc-sem-success, #4caf6e);
   }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; max-width: 480px; }
+  /* REPLICA RNA0TM68 -- the card FRAME. Twins: src/room-card.js (as --ha-card-*) and
+     src/cards/profile-card.js (.evcc-pcard). See src/theme-tokens/cards.js. */
+  .card { background: var(--surface); border: var(--evcc-card-frame-border-width, 1px) solid var(--border); border-radius: var(--radius); box-shadow: var(--evcc-card-frame-shadow, none); overflow: hidden; max-width: 480px; }
 
   .header { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px 10px; flex-wrap: wrap; }
   .header .va-lang { margin-inline-start: auto; align-self: center; }
@@ -1374,10 +1376,14 @@ const CARD_CSS = `
   .carpet { font-size: 0.78rem; color: var(--text-muted); background: var(--evcc-surface-subtle, rgba(255,255,255,0.04)); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
   .field-group { display: flex; flex-direction: column; gap: 6px; }
   .field-label { font-size: 0.70rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--evcc-surface-subtle, rgba(255,255,255,0.04)); color: var(--text-muted); font-size: 0.80rem; font-weight: 500; cursor: pointer; transition: all 120ms ease; }
-  .chip:hover { background: var(--evcc-surface-action-hover, rgba(255,255,255,0.08)); color: var(--text-primary); }
-  .chip.active { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); color: color-mix(in srgb, var(--accent) 90%, white); }
+  /* REPLICA RNN1M4G1 -- the card CHIP. Twin: src/room-card.js, which carries the
+     primary and the reasoning. Mirrors .evcc-chip in src/styles/foundation.js; the
+     fallbacks are the --evcc-chip-* token defaults, not what this card used to
+     hardcode, so one chip token moves the panel and both cards identically. */
+  .chips { display: flex; flex-wrap: wrap; gap: var(--evcc-chip-gap, 6px); }
+  .chip { display: inline-flex; align-items: center; justify-content: center; min-height: var(--evcc-chip-height, 24px); padding: var(--evcc-chip-padding, 5px 14px); border-radius: var(--evcc-chip-radius, 999px); border: 1px solid var(--evcc-chip-border, var(--evcc-border-default)); background: var(--evcc-chip-bg, var(--evcc-surface-input)); color: var(--evcc-chip-text, var(--evcc-text-secondary)); font-size: var(--evcc-chip-font-size, 0.82rem); font-weight: var(--evcc-chip-font-weight, 500); line-height: 1; cursor: pointer; transition: background 120ms ease, border-color 120ms ease, color 120ms ease; }
+  .chip:hover:not(.active) { background: var(--evcc-chip-hover-bg, var(--evcc-surface-panel)); color: var(--evcc-chip-hover-text, var(--evcc-text-primary)); border-color: var(--evcc-chip-hover-border, var(--evcc-border-strong)); }
+  .chip.active { background: var(--evcc-chip-active-bg, color-mix(in srgb, var(--evcc-accent) 18%, transparent)); color: var(--evcc-chip-active-text, var(--evcc-accent)); border-color: var(--evcc-chip-active-border, color-mix(in srgb, var(--evcc-accent) 40%, transparent)); font-weight: 600; }
   ${SLIDER_ROW_CSS}
 
   .launcher { display: flex; flex-direction: column; gap: 10px; }
