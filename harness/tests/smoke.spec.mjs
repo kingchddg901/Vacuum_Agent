@@ -23,6 +23,21 @@
  *   `.evcc-theme-preview-pane` anywhere in it. Those 4402 characters are the
  *   header and footer chrome, and they sailed past `viewLen > 20`.
  *
+ *   RULED 2026-11-16 — the committed `tab-theme.png` BASELINE MAY STAY BLIND, and
+ *   this note exists so a fresh code walk stops here instead of re-opening it.
+ *   Under the plain stub that baseline renders header, nav and the action-button
+ *   row: no sub-tabs, no group filter chips, no token rows, no preview pane. It
+ *   therefore cannot see a token group being added — measured, when "Dashboard
+ *   Cards" landed with 7 tokens and a new preview, that baseline did not move by
+ *   a pixel. Chris's call, and his reason is about the surface rather than the
+ *   effort: the theme tab's content "can change often depending on what is
+ *   selected or not", so a single pixel baseline of it would either pin one
+ *   arbitrary selection or churn on every editor change. What covers that tab is
+ *   property-based and lives elsewhere — `[TPC-*]` for preview coverage,
+ *   `[CDN-*]`/`[CFS-*]` for the cards it previews, and the second describe block
+ *   below for every group rendering at all. Do not propose widening this
+ *   baseline; propose a property gate, or nothing.
+ *
  * `renderThemeEditor` exists precisely to fix this — its own docstring records
  * the same trap biting the mobile-layout probe, which "reported a clean shell
  * having measured nothing". That lesson was applied there and never propagated
@@ -133,7 +148,31 @@ test.describe("theme preview: every subject renders", () => {
       "preview subjects threw",
     ).toEqual([]);
 
-    const empty = report.rows.filter((r) => r.paneLen === 0).map((r) => r.group);
+    // ONE SUBJECT CANNOT BE MEASURED BY A STRING SWEEP, and the reason is structural
+    // rather than an exemption of convenience. Every other preview is a renderer that
+    // returns markup; "Dashboard Cards" returns a SLOT, which main.js's post-render
+    // hook fills with a real mounted <eufy-room-card>. This sweep calls the harness's
+    // string `render()`, so no mount hook ever runs.
+    //
+    // Handing it a stub hass would be WORSE than exempting it: paneLen would then count
+    // the empty slot div, the row would pass, and the sweep would report coverage of a
+    // preview it had not rendered — the exact shape of vacuous pass this whole file is
+    // about. It is gated instead by [CPV-1..6] in card-preview.spec.mjs, which mount the
+    // real panel and assert a populated card, and by [TPC-1] which proves the registry
+    // entry exists at all.
+    const NOT_STRING_RENDERABLE = new Map([
+      ["Dashboard Cards", "emits a mount slot; the card is attached after render, so a " +
+        "string render has nothing to measure. Covered by [CPV-1..6]."],
+    ]);
+
+    // Hygiene: an exemption for a group that is no longer on the roster is a standing
+    // excuse for a problem that may not exist any more.
+    const stale = [...NOT_STRING_RENDERABLE.keys()].filter((g) => !report.groups.includes(g));
+    expect(stale, "exempted groups that are not in the preview registry any more").toEqual([]);
+
+    const empty = report.rows
+      .filter((r) => r.paneLen === 0 && !NOT_STRING_RENDERABLE.has(r.group))
+      .map((r) => r.group);
     expect(empty, "preview subjects rendered an EMPTY pane body").toEqual([]);
 
     // THE DECLARATION-PROVING ASSERTION. Every check above passes if the preview
