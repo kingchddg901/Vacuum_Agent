@@ -525,6 +525,68 @@ ROLE_DEVICE_CLASSES: dict[str, str] = {
 }
 
 
+def rescue_sibling_by_translation_key(
+    hass: HomeAssistant,
+    registry: Any,
+    *,
+    anchor_entity_id: str,
+    wanted_key: str,
+    domain: str,
+) -> str | None:
+    """The sibling of ``anchor_entity_id`` whose upstream ``translation_key`` is
+    ``wanted_key``, for a caller that holds only a DERIVED id and must ask before
+    ``resolve_declared_entities`` has run.
+
+    WHY A THIRD CALLER AND NOT A THIRD COPY. ``resolve_action_entity`` says it plainly:
+    RNF2RCXP is already a replica set because the rescue DECISION keeps getting rewritten,
+    and a new copy is how it grows. So this owns no decision. It sweeps with
+    ``sweep_siblings``, reads keys with ``sibling_translation_keys`` and asks
+    ``rescue_by_translation_key`` — the same three primitives, in the same order, and it
+    returns an ID RATHER THAN A VERDICT so the caller's own resolver still decides what
+    that id MEANS.
+
+    That last part is the whole reason this is not ``resolve_action_entity``. That one
+    answers three ways (resolved / disabled / missing), which is right for something we
+    intend to PRESS. A capability probe needs the FOUR-way answer
+    ``resolve_with_reason`` gives, because ``registered_no_state`` (a boot window) and
+    ``disabled`` point opposite ways — see the table in docs/dev/24-roborock-adapter.md
+    section 3b, where narrowing on the boot window is the one branch that can wet-mop a
+    dry room. Collapsing them here would re-decide that in the wrong place.
+
+    Returns None when nothing matches, when two siblings claim the same key (the
+    ``rescue_by_translation_key`` contract: exactly one or nothing, because a confident
+    wrong answer is worse than an absent one), or when the anchor is not registered.
+    A None is not "absent" — it means this rung had no answer, and the caller still
+    resolves whatever candidates it already had.
+    """
+    # NO try/except HERE, and so no coverage waiver with it. Two reasons, and the
+    # second is the real one. (1) `resolve_action_entity` next door guards the same access
+    # with a None CHECK, not an exception handler, so this matches the house idiom.
+    # (2) Swallowing an exception into "no rescue found" is indistinguishable from "this
+    # install has no water box" — which is precisely the silent, correct-LOOKING answer
+    # that produced issue #81 in the first place. A broken registry should surface, not
+    # quietly re-narrow a mop-capable robot to mopless.
+    if not wanted_key or not domain or registry is None:
+        return None
+    entry = registry.async_get(anchor_entity_id)
+    if entry is None:
+        return None
+
+    siblings, _ = sweep_siblings(registry, entry)
+    if not siblings:
+        return None
+    scoped = [e for e in siblings if e.startswith(f"{domain}.")]
+    if not scoped:
+        return None
+
+    return rescue_by_translation_key(
+        scoped,
+        translation_keys=sibling_translation_keys(registry, scoped),
+        wanted_key=wanted_key,
+        domain=domain,
+    )
+
+
 def rescue_by_device_class(
     siblings: "Iterable[str]",
     *,

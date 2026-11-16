@@ -1762,8 +1762,14 @@ def test_ms10_a_disabled_water_box_still_counts_as_HAVING_a_mop(hass, monkeypatc
 # `device_features.is_support_water_mode` instead — a real hardware claim — so their
 # presence is the signal that actually answers "can this be told to mop".
 
-def _q5_flags(hass, monkeypatch, *, water_box=None, mop_select=None):
-    """Register an uncatalogued model with the two signals set independently."""
+def _q5_flags(hass, monkeypatch, *, water_box=None, mop_select=None,
+              localized=False, water_box_disabled=False):
+    """Register an uncatalogued model with the two signals set independently.
+
+    `localized` slugs the water box the way HA does on a German install — a German
+    object id PLUS the upstream `translation_key`, which is the only part that is not
+    translated. Defaults keep every existing caller byte-identical.
+    """
     from homeassistant.helpers import entity_registry as er
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from custom_components.eufy_vacuum.adapters.registry import get_adapter_config
@@ -1775,13 +1781,39 @@ def _q5_flags(hass, monkeypatch, *, water_box=None, mop_select=None):
     )
     monkeypatch.setattr(rb, "dock_profile", lambda h, v: None)
     clear_registry()
-    entry = MockConfigEntry(domain="roborock", entry_id="ms11")
+    # Unique per COMBINATION, not a counter: [MS-15] calls this several times inside one
+    # test and a fixed id raises "An entry with the id ms11 already exists". Derived
+    # rather than incremented so it does not depend on call order.
+    entry = MockConfigEntry(
+        domain="roborock",
+        entry_id="ms_%d%d%d%d" % (bool(water_box), bool(mop_select),
+                                  bool(localized), bool(water_box_disabled)),
+    )
     entry.add_to_hass(hass)
     reg = er.async_get(hass)
+    # REGISTER THE VACUUM ITSELF. It was only ever given a STATE here, and a state-only
+    # vacuum has no registry entry — so every sibling sweep anchored on it found nothing.
+    # That cost the English fixtures nothing, because they never needed a sweep: the
+    # derived id matched. It is exactly the gap that let the localized case ([MS-14]) ship
+    # undetected, and it is not how a real install looks — the upstream integration
+    # registers the vacuum on the same config entry as its sensors, which is what makes
+    # them siblings at all.
+    reg.async_get_or_create("vacuum", "roborock", "q5_vacuum",
+                            suggested_object_id="roborock_q5",
+                            config_entry=entry)
     if water_box:
-        reg.async_get_or_create("binary_sensor", "roborock", "q5_water_box_status",
-                                suggested_object_id="roborock_q5_water_box_attached",
-                                config_entry=entry)
+        reg.async_get_or_create(
+            "binary_sensor", "roborock", "q5_water_box_status",
+            suggested_object_id=(
+                "roborock_q5_wasserkasten_angebracht" if localized
+                else "roborock_q5_water_box_attached"
+            ),
+            # The upstream key is set from code and never translated — it is the only
+            # thing that survives localization, which is why the rescue keys on it.
+            translation_key=("water_box_attached" if localized else None),
+            disabled_by=(er.RegistryEntryDisabler.INTEGRATION if water_box_disabled else None),
+            config_entry=entry,
+        )
     if mop_select:
         reg.async_get_or_create("select", "roborock", "q5_water_box_mode",
                                 suggested_object_id="roborock_q5_mop_intensity",
@@ -2225,3 +2257,73 @@ def test_rd8_a_device_with_no_roborock_identifier_resolves_to_none(hass):
     )
 
     assert rb_dock.find_dock_device(hass, vac.entity_id) is None
+
+
+def test_ms14_a_localized_water_box_still_claims_the_mop_module(hass, monkeypatch):
+    """[MS-14] ISSUE #81 — a German install must not read as mopless.
+
+    THE RED INPUT: a water box whose entity id HA slugged from the German name
+    (`binary_sensor.<vac>_wasserkasten_angebracht`), on an uncatalogued model. The probe
+    derived the English id, found nothing, and reported ABSENT — which on
+    DEFAULT_PROFILE is exactly the input that narrows `mop_settable` to False. The
+    reporter's S7 MaxV (`roborock.vacuum.a27`) showed vacuum-only commands while the
+    same install's log carried `mop_active: True` and `can_wash_mop: True`.
+
+    THE CONTRADICTION IS THE POINT, and it is why nothing errored: the READ path already
+    rescues by `translation_key`, so every mop ENTITY resolved and only the CAPABILITY
+    went false. Two resolution paths; the one without the rescue is the bug.
+
+    ABLATION: drop the `_wb_rescued` candidate from the probe in adapter.py and this
+    goes red while [MS-11] through [MS-13] stay green — the English fixtures cannot
+    see it, which is how it shipped.
+    """
+    cfg, armed = _q5_flags(hass, monkeypatch, water_box=True, mop_select=True,
+                           localized=True)
+
+    assert armed is True, (
+        "a localized water box is still a water box; the safest-water pre-call must arm"
+    )
+    assert cfg["capabilities"]["supports_water_control"] is True
+    assert cfg["capabilities"]["supports_mop_features"] is True
+
+
+@pytest.mark.parametrize(
+    ("localized", "water_box", "disabled", "expect_armed", "what"),
+    [
+        (False, True,  False, True,  "english, water box present"),
+        (True,  True,  False, True,  "GERMAN,  water box present -- issue #81"),
+        (False, True,  True,  True,  "english, water box DISABLED (hardware still claimed)"),
+        (True,  True,  True,  True,  "GERMAN,  water box DISABLED (same answer, either language)"),
+        (False, False, False, False, "english, NO water box -- mopless"),
+        (True,  False, False, False, "GERMAN,  NO water box -- the rescue must not invent one"),
+    ],
+)
+def test_ms15_localization_changes_nothing_but_the_slug(
+    hass, monkeypatch, localized, water_box, disabled, expect_armed, what
+):
+    """[MS-15] The rescue is INVISIBLE to the decision: same answer, either language.
+
+    TWO THINGS I GOT WRONG WRITING THIS, both worth keeping:
+
+    1. I first asserted that a DISABLED water box narrows. It does not, deliberately --
+       3b's four-way table governs the mop CONTROL ([MS-8]); the water box is read as a
+       HARDWARE claim, and "a sensor someone switched off is still proof the integration
+       created it". Disabled is not absent.
+
+    2. I then wrote it as one test calling the fixture five times. `clear_registry()`
+       clears the ADAPTER registry, not HA's ENTITY registry, so each call's entities
+       leaked into the next: the no-water-box row found a water box registered two rows
+       earlier and armed. Worse, the rows that PASSED may have passed on a leaked English
+       entity rather than the German one -- a sample that could not contain the effect.
+       One fixture call per parametrized run, so every row gets a fresh registry.
+
+    ABLATION: drop the `_wb_rescued` candidate from the probe in adapter.py and only the
+    two GERMAN water-box rows go red. The english rows cannot see it, which is how it
+    shipped.
+    """
+    cfg, armed = _q5_flags(hass, monkeypatch, water_box=water_box, mop_select=True,
+                           localized=localized, water_box_disabled=disabled)
+
+    assert armed is expect_armed, what
+    assert cfg["capabilities"]["supports_water_control"] is expect_armed, what
+    assert cfg["capabilities"]["supports_mop_features"] is bool(water_box), what

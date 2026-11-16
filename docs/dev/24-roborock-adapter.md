@@ -130,6 +130,44 @@ live:ENT-2). The correction is simply to ask it instead of re-deriving a boolean
 shorter copy of a predicate is the bug. `[MS-8]` pins `disabled`, `[MS-9]` pins that the
 boot window is untouched.
 
+### 3c. The probe must survive a LOCALIZED entity id — ISSUE #81
+
+The narrowing above asks whether a water box exists, and until 2026-11-15 it asked using a
+**derived English id**: `build_entity_id(vid, SUFFIX_WATER_BOX, …)` →
+`binary_sensor.<vac>_water_box_attached`. HA slugs an entity id from the **translated** name
+at creation time, so on a German install the entity is
+`binary_sensor.<vac>_wasserkasten_angebracht` and the derived id does not exist. The probe
+read `absent`, and on an uncatalogued model that is precisely the input that narrows
+`mop_settable` to False. Reported on a Roborock S7 MaxV (`roborock.vacuum.a27`, not in
+`MODEL_PROFILES`): the card offered vacuum-only commands.
+
+**Nothing failed, which is why it took a contradiction to find.** The READ path already has
+the `translation_key` rung, so `mop_active`, `mop_mode` and `mop_intensity` all rescued and
+logged at INFO — the same install's diagnostics carried `mop_active: True` and
+`can_wash_mop: True` sitting beside `supports_water_control: False`. Two resolution paths,
+one with the rescue and one without; the shorter copy was the bug.
+
+The probe now offers the rescued id as a **second candidate** and still lets
+`resolve_with_reason` decide what it means, so the four-way table above is untouched —
+`rescue_sibling_by_translation_key` returns an id, never a verdict. It is a *caller* of the
+three rescue primitives, not a fourth copy of the decision (the replica set RNF2RCXP is
+already three).
+
+Two conditions must hold together, which is why this was rare: an **uncatalogued** model
+(the narrowing only applies to `DEFAULT_PROFILE`) **and** localized entity ids. An English
+S7 MaxV was fine; a catalogued German model was fine.
+
+The safest-water pre-call needed no change — it already targets `"target_role":
+"mop_intensity"` rather than a frozen id, so the dispatcher reads the resolved (German)
+select at call time. Had it baked in an id, fixing this probe alone would have turned
+"no mop controls" into "every clean aborts", which is strictly worse.
+
+`[MS-14]` pins the German water box; `[MS-15]` pins that language changes nothing but the
+slug, across present / disabled / absent. Ablating the rescued candidate turns only the
+GERMAN rows red — the English fixtures cannot see it, which is how it shipped. The fixture
+now also registers the vacuum entity itself: it was state-only, so every sibling sweep
+anchored on it found nothing, and that gap is what kept the English tests blind.
+
 ### The select is not a device claim — and that is why there are two signals
 
 Measured in python-roborock 7.12.3. `get_water_modes()` opens with

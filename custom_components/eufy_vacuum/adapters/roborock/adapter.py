@@ -25,7 +25,10 @@ from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
-from ..entity_resolve import resolve_declared_entities
+from ..entity_resolve import (
+    rescue_sibling_by_translation_key,
+    resolve_declared_entities,
+)
 
 from ..registry import register_adapter_config
 from .const import ADAPTER_ID, LOW_BATTERY_THRESHOLD_PERCENT
@@ -208,7 +211,36 @@ def register_roborock_adapter_for_vacuum(
     #   a mop module is claimed  AND  a control exists that could receive the call.
     # Either one missing means the safest-water pre-call could only ever abort.
     _water_box_id = build_entity_id(vid, SUFFIX_WATER_BOX, DOMAIN_BINARY_SENSOR)
-    _, _wb_reason = _resolve_with_reason(hass, [_water_box_id])
+    # ISSUE #81 — THE DERIVED ID IS ENGLISH, AND THIS PROBE RUNS BEFORE THE RESCUE.
+    #
+    # `build_entity_id` concatenates an English suffix, and HA slugs an entity id from the
+    # TRANSLATED name at creation time. On a German install the water box is
+    # `binary_sensor.<vac>_wasserkasten_angebracht`, so the derived id simply does not
+    # exist and this probe read ABSENT — which on an uncatalogued model is exactly the
+    # input that narrows `mop_settable` to False. Reported on a Roborock S7 MaxV
+    # (`roborock.vacuum.a27`, not in MODEL_PROFILES): the card showed vacuum-only commands
+    # while the same install's log recorded `mop_active: True` and `can_wash_mop: True`.
+    #
+    # THE TELL WAS THE CONTRADICTION, not an error. Nothing failed — the READ path's
+    # translation_key rung rescued `mop_active`, `mop_mode` and `mop_intensity` and logged
+    # each rescue at INFO, so the mop entities were all present and only the CAPABILITY
+    # went false. Two resolution paths, one with the rescue and one without; the shorter
+    # copy is the bug.
+    #
+    # Rescued as an extra CANDIDATE rather than a verdict, so `resolve_with_reason` still
+    # draws the four-way in 3b: a rescued-but-DISABLED water box must still read `disabled`
+    # and still narrow, exactly as the English one did.
+    _wb_rescued = rescue_sibling_by_translation_key(
+        hass,
+        er.async_get(hass),
+        anchor_entity_id=vid,
+        wanted_key=SUFFIX_WATER_BOX.lstrip("_"),
+        domain=DOMAIN_BINARY_SENSOR,
+    )
+    _wb_candidates = [_water_box_id]
+    if _wb_rescued and _wb_rescued != _water_box_id:
+        _wb_candidates.append(_wb_rescued)
+    _, _wb_reason = _resolve_with_reason(hass, _wb_candidates)
     # Registered-or-stated, DISABLED included: a water-box sensor someone switched off
     # is still proof the integration created it, which is still proof of the flag. This
     # asks about HARDWARE, and nothing about whether a control can be reached.
