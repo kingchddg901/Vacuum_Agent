@@ -397,12 +397,17 @@ export function defineCard(name, cls) {
    `hui-entities-card.getGridOptions()` on the same install, which returns
    {columns: 12, min_columns: 3, rows: "auto"}.
 
-   ⚠ `min_columns` IS A JUDGEMENT, not a measurement, and the only value here that is.
-   Nothing was measured about where each card stops being usable; these are a floor
-   chosen so the card cannot be dragged to a width its controls obviously cannot hold.
-   If someone measures the real breakpoints, these should move to match. */
-export const GRID_ROOM_CARD      = { columns: 12, min_columns: 6, rows: "auto" };
-export const GRID_PROFILE_CARD   = { columns: 12, min_columns: 6, rows: "auto" };
-/* Wider floor: this one carries a map and the control panels under it, and it is the
-   tallest of the three by a factor of four. */
-export const GRID_DASHBOARD_CARD = { columns: 12, min_columns: 8, rows: "auto" };
+   `min_columns` IS DELIBERATELY PERMISSIVE. HIS CALL 2026-11-16: "min columns is going to
+   vary based on names and other things lets the users tune". The first cut floored these
+   at 6/6/8, guessed from English cards on one dashboard -- and the guess is unknowable in
+   principle, because the narrowest usable width depends on the ROOM NAMES and the LOCALE,
+   not on the card. The same card holding "Kitchen" and "Vysávání a vytírání" needs
+   different room to breathe, and a floor derived from English would block precisely the
+   users who most need to widen or narrow it.
+
+   3 matches HA's own `hui-entities-card`, which is the most permissive built-in. The card
+   does not get to decide that its user is wrong about their own dashboard; a bad width is
+   visible immediately and reversible by dragging. */
+export const GRID_ROOM_CARD      = { columns: 12, min_columns: 3, rows: "auto" };
+export const GRID_PROFILE_CARD   = { columns: 12, min_columns: 3, rows: "auto" };
+export const GRID_DASHBOARD_CARD = { columns: 12, min_columns: 3, rows: "auto" };

@@ -136,3 +136,54 @@ test("[CVT-5] turning the option OFF removes what a previous render painted", ()
   assert.equal(host.props.get("--evcc-accent"), undefined,
     "turning it off must hand the card back to the HA theme, not strand the last palette");
 });
+
+
+test("[CVT-6] a theme's font travels with everything else", () => {
+  // FONTS NEEDED NO NEW CODE, and this test exists to record why rather than to add any.
+  // Three facts, each measured on a live install 2026-11-16:
+  //
+  //   `--evcc-font-family` is a THEME-REGISTRY token (theme-tokens/foundations.js), so
+  //   applyDynamicTheme already writes it inline alongside the colours.
+  //
+  //   The @font-face rules are already in document.head: the cards bundle calls
+  //   `ensureFontFacesInDocument()` at MODULE LOAD (cards-standalone.js), and the
+  //   integration loads that bundle on every HA page. Chromium ignores @font-face inside a
+  //   shadow tree, which is the whole reason that document-level call exists.
+  //
+  //   A real theme ("Warm Light") sets a SYSTEM stack — "Segoe UI", "Aptos", system-ui —
+  //   which needs no face registration at all.
+  //
+  // So the only link that was not directly observed is this one: that the resolver carries
+  // the token into its output rather than dropping it with the non-colour keys. That is
+  // what this pins, and it is the part a future refactor could silently break.
+  //
+  // ⚠ `document.fonts.check()` IS NOT EVIDENCE and must not be used as it. Measured on the
+  // same install it returned FALSE for OpenDyslexic, which IS declared in the head, and
+  // TRUE for Atkinson and Lexend, which are not — it answers true for a family with no
+  // registered faces. fonts.js documents this; it is recorded here because this is the
+  // test someone would reach for it in.
+  const STACK = '"Segoe UI", "Aptos", system-ui, sans-serif';
+  const hass = hassWith({
+    "sensor.whatever": themeSensor("vacuum.alfred", {
+      tokens: { "--evcc-font-family": STACK },
+      colors: { "--evcc-accent": "#8C6A3C" },
+    }),
+  });
+
+  const tokens = resolveVaTokens(hass, "vacuum.alfred");
+  assert.equal(tokens["--evcc-font-family"], STACK,
+    "the font is a theme token like any other; dropping it would make a themed card " +
+    "wear the theme's colours in the HA theme's typeface");
+
+  // And it reaches the host, which is where the card's CSS reads it from.
+  const host = fakeHost();
+  applyVaThemeToCard(host, hass, "vacuum.alfred", true);
+  assert.equal(host.props.get("--evcc-font-family"), STACK);
+
+  // The a11y override is a DIFFERENT token and must not be touched by theming: the
+  // font-family read is var(--evcc-a11y-font-family, var(--evcc-font-family, ...)), so
+  // accessibility wins over the theme by sitting earlier in the chain. A theme that set
+  // the a11y token would override a user's accessibility choice.
+  assert.equal(host.props.get("--evcc-a11y-font-family"), undefined,
+    "theming must never write the accessibility font token");
+});

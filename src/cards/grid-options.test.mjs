@@ -64,20 +64,31 @@ test("[GRID-2] the default span is the width the cards already render at", () =>
   }
 });
 
-test("[GRID-3] the dashboard card has the wider floor, and min_columns is a judgement", () => {
-  // It carries a map plus the control panels under it, and measured four times taller than
-  // the other two (1083px against 489 and 268).
-  assert.ok(GRID_DASHBOARD_CARD.min_columns > GRID_ROOM_CARD.min_columns,
-    "the card with a map in it must not shrink as far as the plain ones");
-  assert.equal(GRID_ROOM_CARD.min_columns, GRID_PROFILE_CARD.min_columns,
-    "the two content cards share a floor; if that stops being true, say why here");
-
-  // NOT A MEASUREMENT. Nobody has measured where these cards stop being usable, so this
-  // asserts only that the floors are sane relative to the default — it is deliberately
-  // weak, because a tight assertion here would dress a guess up as a finding.
+test("[GRID-3] the floor is permissive, because the right floor is not ours to know", () => {
+  // HIS RULING 2026-11-16: "min columns is going to vary based on names and other things
+  // lets the users tune". The first version of this file floored these at 6/6/8 and
+  // asserted the dashboard card's floor was the widest — a guess from English cards on one
+  // dashboard, encoded as though it were a finding.
+  //
+  // It is unknowable in principle, not merely unmeasured: the narrowest usable width
+  // depends on the ROOM NAMES and the LOCALE. The same card reading "Kitchen" and
+  // "Vysávání a vytírání" needs different room, and a floor derived from English blocks
+  // exactly the users who most need to tune it.
+  //
+  // THE INPUT THAT MAKES THIS RED is re-tightening any of them above HA's own most
+  // permissive built-in. Raising a floor takes a dashboard the user had already arranged
+  // and silently widens their card on upgrade.
   for (const [name, g] of ALL) {
-    assert.ok(g.min_columns >= 4, `${name}: a floor below 4 columns is not a usable card`);
+    assert.ok(g.min_columns <= 3,
+      `${name}: min_columns is ${g.min_columns}; HA's own hui-entities-card allows 3, and ` +
+      "the card does not get to decide its user is wrong about their own dashboard");
   }
+
+  // All three share the floor now. If that ever stops being true, the reason belongs here
+  // — a card-specific floor is a claim about where THAT card breaks, which nobody has
+  // measured for any of them.
+  assert.equal(GRID_ROOM_CARD.min_columns, GRID_PROFILE_CARD.min_columns);
+  assert.equal(GRID_ROOM_CARD.min_columns, GRID_DASHBOARD_CARD.min_columns);
 });
 
 test("[GRID-4] each card gets its own object, not a shared one", () => {
