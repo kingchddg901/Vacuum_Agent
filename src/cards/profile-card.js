@@ -64,17 +64,17 @@ const CARD_CSS = `
   .evcc-pcard-name { font-size: 1.15rem; font-weight: 600; line-height: 1.2; color: var(--evcc-text-strong, var(--text-primary)); }
   .evcc-pcard-meta { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
   .evcc-pcard-meta-rooms { color: var(--text-muted); font-size: 0.85rem; margin-top: 2px; }
-  .evcc-pcard-manifest { margin-top: 12px; }
+  .evcc-pcard-manifest { margin-top: var(--evcc-space-md, 12px); }
   .evcc-pcard-footer { margin-top: var(--evcc-space-lg, 16px); display: flex; align-items: center; justify-content: flex-end; gap: var(--evcc-space-sm, 8px); }
   .evcc-pcard-footer .pcard-lang { margin-inline-end: auto; }
   .evcc-pcard-run {
     appearance: none; border: none; cursor: pointer;
     display: inline-flex; align-items: center; gap: 4px;
     background: var(--accent); color: var(--text-on-accent);
-    font: inherit; font-weight: 600; padding: 8px 20px; border-radius: 999px;
+    font: inherit; font-weight: 600; padding: 8px 20px; border-radius: var(--evcc-radius-chip, 999px);
     box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent);
   }
-  .evcc-pcard-run:active:not([disabled]) { transform: scale(0.97); }
+  .evcc-pcard-run:active:not([disabled]) { transform: scale(var(--evcc-press-scale, 0.97)); }
   .evcc-pcard-run[disabled] { opacity: 0.5; cursor: default; box-shadow: none; }
   .evcc-pcard-empty { color: var(--text-muted); font-size: 0.9rem; padding: 8px 0; }
 
@@ -87,7 +87,7 @@ const CARD_CSS = `
   }
   .evcc-run-profiles-seq-list {
     list-style: none; margin: 0; padding: 0; display: flex;
-    flex-direction: column; gap: 4px; counter-reset: evcc-seq;
+    flex-direction: column; gap: var(--evcc-space-xs, 4px); counter-reset: evcc-seq;
   }
   .evcc-run-profiles-seq-step {
     display: flex; align-items: center; gap: 6px;
@@ -105,7 +105,7 @@ const CARD_CSS = `
   .evcc-run-profiles-seq-kind { font-weight: 700; color: var(--text-primary); }
   .evcc-run-profiles-seq-mode {
     font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.05em;
-    padding: 1px 5px; border-radius: 999px;
+    padding: 1px 5px; border-radius: var(--evcc-radius-chip, 999px);
     color: var(--text-muted); background: var(--surface-input);
   }
   ${LANG_CSS}

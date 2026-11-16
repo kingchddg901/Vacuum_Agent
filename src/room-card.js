@@ -544,7 +544,7 @@ class EufyRoomCard extends HTMLElement {
 
         /* ---- fields ---- */
         .fields {
-          display: flex; flex-direction: column; gap: 12px;
+          display: flex; flex-direction: column; gap: var(--evcc-space-md, 12px);
           padding: 0 16px 14px;
         }
 
@@ -630,7 +630,7 @@ class EufyRoomCard extends HTMLElement {
         .btn {
           display: flex; align-items: center; gap: 6px;
           padding: 7px 16px;
-          border-radius: 999px;
+          border-radius: var(--evcc-radius-chip, 999px);
           border: 1px solid var(--border);
           background: transparent;
           color: var(--text-muted);
@@ -662,7 +662,7 @@ class EufyRoomCard extends HTMLElement {
           background: color-mix(in srgb, var(--accent) 85%, white);
         }
 
-        .btn-start:active:not(:disabled) { transform: scale(0.96); }
+        .btn-start:active:not(:disabled) { transform: scale(var(--evcc-press-scale, 0.96)); }
 
         @keyframes spin { to { transform: rotate(360deg); } }
         .spinning { animation: spin 0.9s linear infinite; display: inline-block; }

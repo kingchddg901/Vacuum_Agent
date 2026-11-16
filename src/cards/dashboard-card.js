@@ -1353,15 +1353,15 @@ const CARD_CSS = `
   .section { padding: 4px 12px 8px; }
   .section-label { font-size: 0.70rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 4px 4px; }
   .rooms.is-disabled { opacity: 0.4; pointer-events: none; }
-  .group-head { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+  .group-head { display: flex; align-items: center; gap: var(--evcc-space-sm, 8px); cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
   .group-head .section-label { flex: 0 0 auto; }
   .group-head .count { font-size: 0.68rem; font-weight: 600; color: var(--evcc-chip-active-text, color-mix(in srgb, var(--accent) 90%, white)); background: var(--evcc-chip-active-bg, color-mix(in srgb, var(--accent) 16%, transparent)); border-radius: 10px; padding: 1px 8px; }
   .group-chevron { margin-inline-start: auto; color: var(--text-muted); font-size: 0.9rem; transition: transform var(--evcc-transition-normal, 150ms ease); }
   .rooms:not(.is-collapsed) .group-chevron,
   .map-section:not(.is-collapsed) .group-chevron { transform: rotate(180deg); }
-  .empty { padding: 16px; font-size: 0.85rem; color: var(--text-muted); }
+  .empty { padding: var(--evcc-space-lg, 16px); font-size: 0.85rem; color: var(--text-muted); }
 
-  .room-row { border: 1px solid var(--border); border-radius: 8px; margin: 4px 0; overflow: hidden; }
+  .room-row { border: 1px solid var(--border); border-radius: var(--evcc-radius-inner, 8px); margin: var(--evcc-space-xs, 4px) 0; overflow: hidden; }
   .room-row.is-selected { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
   .room-head { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
   .include { width: 22px; height: 22px; flex-shrink: 0; border: none; background: transparent; cursor: pointer; padding: 0; }
@@ -1372,7 +1372,7 @@ const CARD_CSS = `
   .chevron { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.9rem; transition: transform var(--evcc-transition-normal, 150ms ease); }
   .room-row.is-open .chevron { transform: rotate(180deg); }
 
-  .room-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 12px 12px; border-top: 1px solid var(--border); }
+  .room-body { display: flex; flex-direction: column; gap: var(--evcc-section-gap, 10px); padding: 4px 12px 12px; border-top: 1px solid var(--border); }
   .carpet { font-size: 0.78rem; color: var(--text-muted); background: var(--evcc-surface-subtle, rgba(255,255,255,0.04)); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
   .field-group { display: flex; flex-direction: column; gap: 6px; }
   .field-label { font-size: 0.70rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -1390,8 +1390,8 @@ const CARD_CSS = `
   .chip.active { background: var(--evcc-chip-active-bg, color-mix(in srgb, var(--evcc-accent) 18%, transparent)); color: var(--evcc-chip-active-text, color-mix(in srgb, var(--evcc-accent) 90%, white)); border-color: var(--evcc-chip-active-border, color-mix(in srgb, var(--evcc-accent) 40%, transparent)); font-weight: 600; }
   ${SLIDER_ROW_CSS}
 
-  .launcher { display: flex; flex-direction: column; gap: 10px; }
-  .launch-group { display: flex; flex-direction: column; gap: 4px; }
+  .launcher { display: flex; flex-direction: column; gap: var(--evcc-section-gap, 10px); }
+  .launch-group { display: flex; flex-direction: column; gap: var(--evcc-space-xs, 4px); }
   select { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-primary); font-size: 0.88rem; appearance: none; -webkit-appearance: none; }
   .hint { font-size: 0.72rem; color: var(--text-muted); padding: 0 2px; }
 
@@ -1415,12 +1415,12 @@ const CARD_CSS = `
   .map-loading { padding: 24px 12px; text-align: center; font-size: 0.78rem; color: var(--text-muted); }
 
   .footer { display: flex; justify-content: flex-end; align-items: center; gap: var(--evcc-space-sm, 8px); padding: 10px 16px; border-top: 1px solid var(--border); }
-  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 120ms ease; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: var(--evcc-radius-chip, 999px); border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 120ms ease; }
   .btn:hover { color: var(--text-primary); }
   .btn-start { color: var(--evcc-text-on-accent, #fff); border-color: transparent; background: var(--accent); }
   .btn-start:hover { background: color-mix(in srgb, var(--accent) 85%, white); }
   .btn-start:disabled { opacity: 0.4; cursor: default; background: var(--accent); }
-  .btn-start:active:not(:disabled) { transform: scale(0.96); }
+  .btn-start:active:not(:disabled) { transform: scale(var(--evcc-press-scale, 0.96)); }
   @keyframes spin { to { transform: rotate(360deg); } }
   .spin { animation: spin 0.9s linear infinite; display: inline-block; }
   /* ---- Sequence-override row -------------------------------------------------
@@ -1445,12 +1445,12 @@ const CARD_CSS = `
     gap: 8px;
     font-size: 0.85rem;
   }
-  .soro-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .soro-header { display: flex; align-items: center; justify-content: space-between; gap: var(--evcc-space-sm, 8px); flex-wrap: wrap; }
   .soro-consent { font-size: 0.72rem; color: var(--text-muted); flex: 1 1 auto; min-width: 0; }
   .soro-body { display: flex; flex-direction: column; gap: 6px; }
   .soro-names { color: inherit; word-break: break-word; }
   .soro-status { font-weight: 600; }
-  .soro-diff { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; }
+  .soro-diff { display: flex; flex-direction: column; gap: var(--evcc-space-xs, 4px); font-size: 0.8rem; }
   .soro-diff small { color: var(--text-muted); margin-inline-end: 6px; display: inline-block; }
   /* wrap: two full-width buttons on a phone ran off the edge of the panel's copy
      of this row, and the same labels sit here. */
