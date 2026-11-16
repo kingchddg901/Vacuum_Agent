@@ -183,6 +183,75 @@ def _profile_sensor(manager):
     )
 
 
+def test_se14_card_theme_carries_the_raw_triplet_for_a_dashboard_card(manager):
+    """[SE-14] `card_theme` ships the ACTIVE theme's raw tokens/colors/alpha.
+
+    A dashboard card that follows the VA theme reads this from `hass.states` — no service
+    call, no subscription. It is RAW rather than resolved on purpose: the four-layer merge
+    lives in the frontend, and the card already carries the two default layers because it
+    already renders materials from them. Serving a resolved set would mean porting that
+    merge to Python.
+
+    THE INPUT THAT MAKES THIS RED: rebuilding `card_theme` field by field from a fixed
+    key list instead of taking the stored triplet whole. A stored theme that grows a key
+    then reaches the sensor and stops at the card, silently, which is the shape that has
+    cost this tree a dropped field more than once.
+    """
+    result = manager.themes.save_theme_as_new(vacuum_entity_id=_VAC, name="Carried")
+    theme_id = result["theme_id"]
+    entry = manager.data["theme"]["library"][theme_id]
+    entry["tokens"] = {"--evcc-surface-card": "#123456"}
+    entry["colors"] = {"--evcc-accent": "#abcdef"}
+    entry["alpha"] = {"--evcc-chip-border": 0.5}
+
+    attrs = EufyVacuumThemeStateSensor(
+        manager=manager, vacuum_entity_id=_VAC
+    ).extra_state_attributes
+
+    assert attrs["card_theme"]["theme_id"] == theme_id
+    assert attrs["card_theme"]["tokens"] == {"--evcc-surface-card": "#123456"}
+    assert attrs["card_theme"]["colors"] == {"--evcc-accent": "#abcdef"}
+    assert attrs["card_theme"]["alpha"] == {"--evcc-chip-border": 0.5}
+
+
+def test_se15_card_theme_is_present_and_empty_when_no_theme_is_active(manager):
+    """[SE-15] The card must be able to tell "follow VA theme, nothing set" from "absent".
+
+    An absent key and an empty triplet are different answers: the first says this build
+    cannot do it, the second says there is nothing to apply. A card that cannot
+    distinguish them has to guess, so the key is always present and the dicts degrade to
+    empty rather than to None.
+    """
+    attrs = EufyVacuumThemeStateSensor(
+        manager=manager, vacuum_entity_id=_VAC
+    ).extra_state_attributes
+
+    assert "card_theme" in attrs, "always present, even with no active theme"
+    assert attrs["card_theme"]["theme_id"] is None
+    for key in ("tokens", "colors", "alpha"):
+        assert attrs["card_theme"][key] == {}, f"{key} must degrade to {{}}, never None"
+
+
+def test_se16_card_theme_is_kept_out_of_the_recorder(manager):
+    """[SE-16] The payload is excluded from history, and that is the point of the design.
+
+    This entity's state changes on every keystroke of a live theme edit, because
+    `working_draft` is an attribute. Recording ~8 KB of palette per nudge would dwarf the
+    value of the history, and nobody plots a palette. Pruning the payload was the
+    alternative and it needed a second Python replica to save ~3 KB; this needs none.
+
+    ABLATION: drop `card_theme` from `_UNRECORDED` and this goes red while every other
+    [SE-*] stays green — none of them can see the recorder at all.
+    """
+    assert "card_theme" in EufyVacuumThemeStateSensor._unrecorded_attributes
+    # And the attributes that were ALREADY recorded stay recorded: silently dropping them
+    # from history is a behaviour change for existing installs, not this change's to make.
+    for key in ("working_draft", "library_summary"):
+        assert key not in EufyVacuumThemeStateSensor._unrecorded_attributes, (
+            f"{key} was recorded before this change and must stay that way"
+        )
+
+
 def test_se13_the_profile_sensor_resolves_the_adapter_catalog(manager):
     """[SE-13] RED BEFORE THE FIX, and red for the 17 days nobody noticed.
 

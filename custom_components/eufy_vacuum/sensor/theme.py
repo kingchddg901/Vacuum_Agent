@@ -14,6 +14,17 @@ from homeassistant.helpers.entity import EntityCategory
 
 from ..entity_helpers import build_vacuum_device_info
 
+# Kept OUT OF THE RECORDER. `card_theme` is the active theme's raw token/colour/alpha
+# triplet -- ~8 KB on a real theme -- and this entity's state changes on every keystroke
+# of a live theme edit (`working_draft` is an attribute too). Recording 8 KB per draft
+# nudge would dwarf the value of the history, and nobody plots a palette. Precedent:
+# sensor/map_overlays.py does the same for its layer arrays.
+#
+# ONLY THE NEW KEY IS LISTED. `working_draft` and `library_summary` are bulky too, but
+# they are recorded TODAY and silently dropping them from history is a behaviour change
+# for existing installs that is not this change's to make.
+_UNRECORDED = frozenset({"card_theme"})
+
 
 class EufyVacuumThemeStateSensor(SensorEntity):
     """Exposes the active theme name and draft state for one vacuum.
@@ -28,6 +39,7 @@ class EufyVacuumThemeStateSensor(SensorEntity):
     _attr_translation_key = "theme_state"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_icon = "mdi:palette"
+    _unrecorded_attributes = _UNRECORDED
 
     def __init__(
         self,
@@ -88,8 +100,37 @@ class EufyVacuumThemeStateSensor(SensorEntity):
             for tid, t in library.items()
         ]
 
+        # ISSUE #83 / card theming — the RAW active theme, for a dashboard card that has
+        # been told to follow the VA theme.
+        #
+        # RAW, NOT RESOLVED, and that is the whole design decision. Resolution is a
+        # four-layer merge that lives in the FRONTEND (`state.resolvedTheme()`); the card
+        # already carries the two default layers (the room-fill palette and
+        # FLOOR_TEXTURE_REGISTRY), because it already renders materials from them. Serving
+        # a resolved set from here would mean porting that merge to Python — a replica of
+        # exactly the kind this tree keeps paying for — to save roughly 900 bytes. The card
+        # imports the SAME resolver the panel uses instead.
+        #
+        # UNPRUNED, deliberately. Pruning the floor tokens to materials actually in use
+        # saves ~3 KB, but every way of doing it needs a SECOND replica: `resolveFloorType`
+        # to map a stored floor_type onto a token segment, or the built-in material list,
+        # or a catalogue read inside a property. Measured on a real theme: 8,019 B whole,
+        # 4,712 B of it non-floor and unprunable anyway. `_UNRECORDED` above removes the
+        # cost that actually mattered, which was the recorder, not the 3 KB.
+        #
+        # Taken WHOLE from the library entry rather than rebuilt field by field, so a new
+        # key in a stored theme reaches the card without a fourth dict learning about it.
+        active = library.get(vac.get("active_theme_id") or "") or {}
+        card_theme = {
+            "theme_id": vac.get("active_theme_id"),
+            "tokens": active.get("tokens") or {},
+            "colors": active.get("colors") or {},
+            "alpha": active.get("alpha") or {},
+        }
+
         return {
             "active_theme_id": vac.get("active_theme_id"),
+            "card_theme": card_theme,
             "draft_dirty": bool(vac.get("draft_dirty", False)),
             "editor_mode": vac.get("editor_mode", "live"),
             "working_draft": vac.get("working_draft", {"tokens": {}, "colors": {}, "alpha": {}}),
