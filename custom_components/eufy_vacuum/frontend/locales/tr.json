@@ -2472,6 +2472,8 @@
     "editor_pick_vacuum": "— bir robot süpürge seçin —",
     "editor_room_label": "Oda",
     "editor_select_vacuum_first": "Önce bir robot süpürge seçin.",
+    "editor_va_theme_hint": "Home Assistant temasını bu süpürge için ayarlanan temayla değiştirir. Varsayılan olarak kapalıdır.",
+    "editor_va_theme_label": "Vacuum Agent temasını kullan",
     "editor_vacuum_label": "Robot Süpürge",
     "passes_1": "1 Geçiş",
     "passes_2": "2 Geçiş",

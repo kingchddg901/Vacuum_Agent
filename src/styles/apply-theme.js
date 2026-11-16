@@ -21,7 +21,10 @@
  * ============================================================
  */
 
-import { applyDynamicTheme } from "./index.js";
+// From ./apply-tokens.js, NOT ./index.js. Same function -- index.js re-exports it -- but
+// index.js imports every stylesheet in the project, so reaching the writer through it
+// cost a measured +443,485 bytes to anything that did not already want the CSS.
+import { applyDynamicTheme } from "./apply-tokens.js";
 
 /**
  * Applies the card's current resolved theme to all live DOM targets that consume

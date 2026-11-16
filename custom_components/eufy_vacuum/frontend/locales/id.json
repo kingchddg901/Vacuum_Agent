@@ -2472,6 +2472,8 @@
     "editor_pick_vacuum": "— pilih penyedot debu —",
     "editor_room_label": "Ruangan",
     "editor_select_vacuum_first": "Pilih penyedot debu terlebih dahulu.",
+    "editor_va_theme_hint": "Menimpa tema Home Assistant dengan tema yang disetel untuk penyedot ini. Nonaktif secara bawaan.",
+    "editor_va_theme_label": "Gunakan tema Vacuum Agent",
     "editor_vacuum_label": "Penyedot Debu",
     "passes_1": "1 Putaran",
     "passes_2": "2 Putaran",

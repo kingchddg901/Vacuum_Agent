@@ -1144,6 +1144,8 @@
     "editor_pick_vacuum": "— Saugroboter auswählen —",
     "editor_room_label": "Raum",
     "editor_select_vacuum_first": "Wähle zuerst einen Saugroboter aus.",
+    "editor_va_theme_hint": "Überschreibt das Home-Assistant-Design mit dem für diesen Sauger gewählten. Standardmäßig aus.",
+    "editor_va_theme_label": "Vacuum-Agent-Design verwenden",
     "editor_vacuum_label": "Saugroboter",
     "passes_1": "1 Durchgang",
     "passes_2": "2 Durchgänge",

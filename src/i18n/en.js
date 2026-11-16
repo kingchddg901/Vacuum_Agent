@@ -1309,6 +1309,8 @@ export const en = {
   "room_card.editor_pick_vacuum": "— pick a vacuum —",
   "room_card.editor_room_label": "Room",
   "room_card.editor_select_vacuum_first": "Select a vacuum first.",
+  "room_card.editor_va_theme_hint": "Replaces the Home Assistant theme with the one set for this vacuum. Off by default, so adding this option never changes a dashboard you already built.",
+  "room_card.editor_va_theme_label": "Use the Vacuum Agent theme",  // Checkbox in the room-card editor. "Vacuum Agent" is the product name and stays untranslated; the rest of the sentence is localised.
   "room_card.editor_vacuum_label": "Vacuum",  // Editor dropdown label for picking the vacuum device; noun (the robot), not the verb
   "room_card.passes_1": "1 Pass",  // chip value: one cleaning sweep over the room (passes count = 1)
   "room_card.passes_2": "2 Passes",  // chip value: two cleaning sweeps over the room (passes count = 2)

@@ -1690,6 +1690,8 @@
     "editor_pick_vacuum": "— 로봇청소기 선택 —",
     "editor_room_label": "방",
     "editor_select_vacuum_first": "먼저 로봇청소기를 선택하세요.",
+    "editor_va_theme_hint": "이 청소기에 설정된 테마로 Home Assistant 테마를 덮어씁니다. 기본값은 꺼짐입니다.",
+    "editor_va_theme_label": "Vacuum Agent 테마 사용",
     "editor_vacuum_label": "로봇청소기",
     "passes_1": "1회",
     "passes_2": "2회",

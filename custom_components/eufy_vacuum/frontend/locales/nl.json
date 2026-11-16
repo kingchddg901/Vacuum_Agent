@@ -1144,6 +1144,8 @@
     "editor_pick_vacuum": "— kies een stofzuiger —",
     "editor_room_label": "Kamer",
     "editor_select_vacuum_first": "Selecteer eerst een stofzuiger.",
+    "editor_va_theme_hint": "Overschrijft het Home Assistant-thema met het thema van deze stofzuiger. Standaard uit.",
+    "editor_va_theme_label": "Vacuum Agent-thema gebruiken",
     "editor_vacuum_label": "Stofzuiger",
     "passes_1": "1 beurt",
     "passes_2": "2 beurten",

@@ -1725,6 +1725,8 @@
     "editor_pick_vacuum": "— اختر مكنسة —",
     "editor_room_label": "الغرفة",
     "editor_select_vacuum_first": "اختر مكنسة أولاً.",
+    "editor_va_theme_hint": "استبدال سمة Home Assistant بالسمة المحددة لهذا المكنسة. مطفأ افتراضيًا.",
+    "editor_va_theme_label": "استخدام سمة Vacuum Agent",
     "editor_vacuum_label": "المكنسة",
     "passes_1": "تمريرة واحدة",
     "passes_2": "تمريرتان",

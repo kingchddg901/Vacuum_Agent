@@ -6,6 +6,44 @@ Every token in the registry is a CSS custom property. When a theme is active the
 
 ---
 
+## The VA theme on a dashboard card (opt-in)
+
+The panel wears the VA theme; dashboard cards wear the **HA** theme. That is not an
+oversight — `main.js` calls `applyThemeToCard` at the top of every render and the cards
+never called it at all, so their `:host` seeds stay intact and HA's own variables
+(`--card-background-color` and friends) flow through. A card is a guest in somebody's
+dashboard and matching its host is usually right.
+
+`va_theme: true` on a card's config opts out of that. Measured facts behind the design:
+
+- **Nothing about rendering changes.** Both paths already read each value as a token with
+  the shipped value as its CSS fallback — the card layer in
+  `renderers/floor-texture-surface.js`, the map canvas through `_resolveFloorColor`. A card
+  with no tokens resolves to the defaults; a card with tokens resolves to the theme. The
+  whole job is getting tokens onto the host.
+- **The values arrive on the sensor.** `sensor.<robot>_theme_state` carries `card_theme`:
+  the active theme's RAW tokens/colours/alpha. Raw rather than resolved because resolution
+  is a four-layer merge living in `state/theme.js`, and the card already carries the two
+  default layers (the room-fill palette and `FLOOR_TEXTURE_REGISTRY`) since it renders
+  materials from them. Serving a resolved set would mean porting that merge to Python.
+  The attribute is in `_unrecorded_attributes`: this entity's state changes on every
+  keystroke of a live theme edit, and nobody plots a palette.
+- **The sensor is matched on its `vacuum_entity_id` attribute**, never by slugging an
+  entity id. `sensor.<obj>_theme_state` is the construction that produced issue #81 — HA
+  slugs ids from the translated name at creation. Pinned by `[CVT-3]`.
+- **Turning it off repaints with an empty map**, it does not return early. The writer
+  removes every registry token it is not handed, so the disabled call is what hands the
+  card back to the HA theme. Pinned by `[CVT-5]`.
+
+### Why `styles/apply-tokens.js` exists
+
+`applyDynamicTheme` used to live in `styles/index.js`, which imports **every stylesheet in
+the project**. Reaching the writer through it cost a measured **+443,485 bytes** of bundle —
+irrelevant to the panel, which wants the stylesheets anyway, and fatal to a dashboard card
+that only wants to paint variables. Moved (not copied — `index.js` re-exports it, so every
+existing import is unchanged) the same writer costs **+1,828 bytes**. The resolver is a
+further +18,483 B.
+
 ## 1. Overview
 
 ### What the theme system is

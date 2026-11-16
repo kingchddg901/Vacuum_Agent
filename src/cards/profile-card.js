@@ -21,8 +21,7 @@ import { translate, resolveLang, ensureLocalesLoaded, applyDir } from "../i18n/i
 import { foundationTokens } from "../styles/foundation.js";
 import {
   esc, callResponse, defineCard, registerCard, getStoredLang, setStoredLang,
-  renderLangControl, wireLangControl, LANG_CSS, vocab, roomSwitchesFor,
-} from "./_shared.js";
+  renderLangControl, wireLangControl, LANG_CSS, vocab, roomSwitchesFor, GRID_PROFILE_CARD } from "./_shared.js";
 import { dashboardSuggestion } from "./card-suggestions.js";
 import { renderStepsManifest } from "../state/steps-manifest.js";
 
@@ -292,6 +291,10 @@ class VacuumAgentProfileCard extends HTMLElement {
       this._render();
     }
   }
+
+  /* Sections-view sizing. Without this HA warns that the card "does not fully
+     support resizing"; the values are MEASURED -- see _shared.js. */
+  getGridOptions() { return { ...GRID_PROFILE_CARD }; }
 
   getCardSize() { return 3; }
 

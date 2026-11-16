@@ -1711,6 +1711,8 @@
     "editor_pick_vacuum": "— בחר שואב —",
     "editor_room_label": "חדר",
     "editor_select_vacuum_first": "בחר שואב תחילה.",
+    "editor_va_theme_hint": "דורסת את ערכת הנושא של Home Assistant בזו שהוגדרה לשואב הזה. כבוי כברירת מחדל.",
+    "editor_va_theme_label": "שימוש בערכת הנושא של Vacuum Agent",
     "editor_vacuum_label": "שואב",
     "passes_1": "מעבר אחד",
     "passes_2": "שני מעברים",

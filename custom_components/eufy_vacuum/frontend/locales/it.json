@@ -1146,6 +1146,8 @@
     "editor_pick_vacuum": "— scegli un aspirapolvere —",
     "editor_room_label": "Stanza",
     "editor_select_vacuum_first": "Seleziona prima un aspirapolvere.",
+    "editor_va_theme_hint": "Sostituisce il tema di Home Assistant con quello impostato per questo aspirapolvere. Disattivato per impostazione predefinita.",
+    "editor_va_theme_label": "Usa il tema di Vacuum Agent",
     "editor_vacuum_label": "Aspirapolvere",
     "passes_1": "1 passaggio",
     "passes_2": "2 passaggi",

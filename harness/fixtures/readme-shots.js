@@ -546,7 +546,12 @@ export const README_SHOTS = [
         ".evcc-map-container": 1,
         ".evcc-map-polygon": 6,
         ".evcc-map-label": 6,
-        ".evcc-rooms-view-toggle-btn": 6,
+        // 7 since ISSUE #82 added the mascot-row collapse caret, which reuses this class
+        // for its styling. RAISED DELIBERATELY, not because anything failed: these
+        // counts are MINIMUMS (shoot-readme.mjs: `got < min`), so 7 sailed past a 6 and
+        // nothing would have noticed the caret going missing again. Raising the floor is
+        // the only thing that makes its absence visible here.
+        ".evcc-rooms-view-toggle-btn": 7,
       },
       text: ROOM_NAMES,
       minHeight: 500,

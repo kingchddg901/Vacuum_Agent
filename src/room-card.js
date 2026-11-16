@@ -8,9 +8,13 @@ import { translate, resolveLang, ensureLocalesLoaded, applyDir } from "./i18n/in
 import { foundationTokens } from "./styles/foundation.js";
 import {
   esc, vocab, roomSwitchesFor, adapterOptions, adapterRange, sliderRow, SLIDER_ROW_CSS, committedRoomFields, isMopMode, canonicalCleanMode, stripNull, defineCard,
-  renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang,
-} from "./cards/_shared.js";
+  renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang, GRID_ROOM_CARD } from "./cards/_shared.js";
 import { roomSuggestion } from "./cards/card-suggestions.js";
+// Opt-in VA theming. From styles/card-theme.js, which reaches the token writer through
+// styles/apply-tokens.js rather than styles/index.js -- the latter imports every
+// stylesheet in the project and cost a measured +443,485 B to anything that only
+// wanted to paint variables.
+import { applyVaThemeToCard } from "./styles/card-theme.js";
 
 const ROOM_CARD_NAME   = "eufy-room-card";
 const ROOM_CARD_EDITOR = "eufy-room-card-editor";
@@ -82,6 +86,9 @@ class EufyRoomCardEditor extends HTMLElement {
     const rooms          = this._roomSwitchesFor(selectedVacuum);
     const selectedRoom   = this._config.room_id != null ? String(this._config.room_id) : "";
     const nameOverride   = this._config.name ?? "";
+    // OFF unless explicitly true: turning this on by default would restyle every
+    // existing dashboard the moment the user updated.
+    const vaTheme        = this._config.va_theme === true;
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -133,6 +140,14 @@ class EufyRoomCardEditor extends HTMLElement {
         <input id="name" type="text" placeholder="${this.t("room_card.editor_name_placeholder")}" value="${esc(nameOverride)}">
         <div class="hint">${this.t("room_card.editor_name_hint")}</div>
       </div>
+
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+          <input id="va-theme" type="checkbox" style="width:auto" ${vaTheme ? "checked" : ""}>
+          ${this.t("room_card.editor_va_theme_label")}
+        </label>
+        <div class="hint">${this.t("room_card.editor_va_theme_hint")}</div>
+      </div>
     `;
 
     this.shadowRoot.getElementById("vacuum")?.addEventListener("change", (e) => {
@@ -142,6 +157,13 @@ class EufyRoomCardEditor extends HTMLElement {
       const val = e.target.value;
       const asNum = Number(val);
       this._fire({ ...this._config, room_id: Number.isFinite(asNum) ? asNum : val });
+    });
+    this.shadowRoot.getElementById("va-theme")?.addEventListener("change", (e) => {
+      const next = { ...this._config };
+      // Written only when ON, so a card that never opted in carries no key at all and
+      // its stored config is byte-identical to one from before this option existed.
+      if (e.target.checked) next.va_theme = true; else delete next.va_theme;
+      this._fire(next);
     });
     this.shadowRoot.getElementById("name")?.addEventListener("change", (e) => {
       const val = e.target.value.trim();
@@ -314,6 +336,20 @@ class EufyRoomCard extends HTMLElement {
       this.shadowRoot.innerHTML = "";
       return;
     }
+
+    /* Opt-in VA theme, painted on EVERY render for the same reason the panel does it at
+       the top of its own (main.js): it is what keeps the card tracking a theme edit, an
+       HA theme switch, or the option being turned off again.
+       CALLED EVEN WHEN THE OPTION IS OFF, deliberately -- the writer removes every
+       registry token it is not given, so the disabled call is what UNDOES a previous
+       paint and hands the card back to the HA theme. Returning early instead would
+       strand the last palette on the host until a reload. */
+    applyVaThemeToCard(
+      this,
+      this._hass,
+      this._config.vacuum_entity_id,
+      this._config.va_theme === true,
+    );
 
     const sw        = this._targetSwitch();
     const swAttrs   = sw?.attrs ?? {};
@@ -730,6 +766,10 @@ class EufyRoomCard extends HTMLElement {
       this._render();
     }
   }
+
+  /* Sections-view sizing. Without this HA warns that the card "does not fully
+     support resizing"; the values are MEASURED -- see _shared.js. */
+  getGridOptions() { return { ...GRID_ROOM_CARD }; }
 
   static getConfigElement() { return document.createElement(ROOM_CARD_EDITOR); }
 

@@ -1690,6 +1690,8 @@
     "editor_pick_vacuum": "— 選擇吸塵器 —",
     "editor_room_label": "房間",
     "editor_select_vacuum_first": "請先選擇吸塵器。",
+    "editor_va_theme_hint": "以此掃地機設定的主題覆寫 Home Assistant 主題。預設為關閉。",
+    "editor_va_theme_label": "使用 Vacuum Agent 主題",
     "editor_vacuum_label": "吸塵器",
     "passes_1": "1 遍",
     "passes_2": "2 遍",

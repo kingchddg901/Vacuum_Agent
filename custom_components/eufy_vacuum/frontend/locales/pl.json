@@ -2475,6 +2475,8 @@
     "editor_pick_vacuum": "— wybierz odkurzacz —",
     "editor_room_label": "Pokój",
     "editor_select_vacuum_first": "Najpierw wybierz odkurzacz.",
+    "editor_va_theme_hint": "Zastępuje motyw Home Assistant motywem ustawionym dla tego odkurzacza. Domyślnie wyłączone.",
+    "editor_va_theme_label": "Użyj motywu Vacuum Agent",
     "editor_vacuum_label": "Odkurzacz",
     "passes_1": "1 przejście",
     "passes_2": "2 przejścia",

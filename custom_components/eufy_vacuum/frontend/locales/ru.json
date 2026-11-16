@@ -1214,6 +1214,8 @@
     "editor_pick_vacuum": "— выберите пылесос —",
     "editor_room_label": "Комната",
     "editor_select_vacuum_first": "Сначала выберите пылесос.",
+    "editor_va_theme_hint": "Заменяет тему Home Assistant темой, заданной для этого пылесоса. По умолчанию выключено.",
+    "editor_va_theme_label": "Использовать тему Vacuum Agent",
     "editor_vacuum_label": "Пылесос",
     "passes_1": "1 проход",
     "passes_2": "2 прохода",

@@ -1690,6 +1690,8 @@
     "editor_pick_vacuum": "— 选择扫地机器人 —",
     "editor_room_label": "房间",
     "editor_select_vacuum_first": "请先选择扫地机器人。",
+    "editor_va_theme_hint": "用为该扫地机设置的主题覆盖 Home Assistant 主题。默认关闭。",
+    "editor_va_theme_label": "使用 Vacuum Agent 主题",
     "editor_vacuum_label": "扫地机器人",
     "passes_1": "1 遍",
     "passes_2": "2 遍",

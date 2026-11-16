@@ -15,8 +15,7 @@ import {
   translate, resolveLang, ensureLocalesLoaded, applyDir,
   esc, vocab, roomSwitchesFor, adapterOptions, adapterRange, committedRoomFields, isMopMode,
   chipRow, sliderRow, SLIDER_ROW_CSS, callResponse, registerCard, defineCard, stripNull,
-  renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang,
-} from "./_shared.js";
+  renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang, GRID_DASHBOARD_CARD } from "./_shared.js";
 // ISSUE #65 -- this card owns its CSS and shipped with NO --evcc-* defined, so every
 // evcc token reference in it fell through to its white-alpha fallback and the card rendered
 // invisible on a light HA theme. Same gap as the standalone map embed, same repair:
@@ -268,6 +267,10 @@ class EufyDashboardCard extends HTMLElement {
     if (mapEnt && prev.states?.[mapEnt] !== hass.states?.[mapEnt]) return true;
     return false;
   }
+
+  /* Sections-view sizing. Without this HA warns that the card "does not fully
+     support resizing"; the values are MEASURED -- see _shared.js. */
+  getGridOptions() { return { ...GRID_DASHBOARD_CARD }; }
 
   getCardSize() { return 4; }
 

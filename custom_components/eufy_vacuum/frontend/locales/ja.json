@@ -1690,6 +1690,8 @@
     "editor_pick_vacuum": "— ロボット掃除機を選択 —",
     "editor_room_label": "部屋",
     "editor_select_vacuum_first": "先にロボット掃除機を選択してください。",
+    "editor_va_theme_hint": "この掃除機に設定されたテーマで Home Assistant のテーマを上書きします。既定ではオフです。",
+    "editor_va_theme_label": "Vacuum Agent のテーマを使う",
     "editor_vacuum_label": "ロボット掃除機",
     "passes_1": "1回",
     "passes_2": "2回",

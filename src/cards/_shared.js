@@ -374,3 +374,35 @@ export function registerCard(entry) {
 export function defineCard(name, cls) {
   if (!customElements.get(name)) customElements.define(name, cls);
 }
+
+/* ================================================================
+   SECTIONS-VIEW GRID SIZING
+   ================================================================
+   Home Assistant's sections view warns "This card does not fully support resizing yet"
+   for any custom card that does not declare `getGridOptions()`. All three of ours did
+   not, so the warning showed on every one.
+
+   THE NUMBERS ARE MEASURED, NOT PICKED. Read off the live cards on a real dashboard
+   2026-11-16, and the grid they sit in was read the same way rather than taken from the
+   docs -- which say 12 columns and are out of date. The section grid is TWENTY-FOUR
+   columns of 21.25px with 8px gaps, and every one of our cards renders at 343px, which
+   is exactly 12 columns (12 x 21.25 + 11 x 8 = 343). So `columns: 12` is not a new
+   choice: it is what the cards already do, written down so HA stops guessing.
+
+       eufy-room-card              343 x 489
+       vacuum-agent-profile-card   343 x 268
+       vacuum-agent-dashboard      343 x 1083
+
+   `rows: "auto"` because all three are content-sized -- confirmed as valid by reading
+   `hui-entities-card.getGridOptions()` on the same install, which returns
+   {columns: 12, min_columns: 3, rows: "auto"}.
+
+   ⚠ `min_columns` IS A JUDGEMENT, not a measurement, and the only value here that is.
+   Nothing was measured about where each card stops being usable; these are a floor
+   chosen so the card cannot be dragged to a width its controls obviously cannot hold.
+   If someone measures the real breakpoints, these should move to match. */
+export const GRID_ROOM_CARD      = { columns: 12, min_columns: 6, rows: "auto" };
+export const GRID_PROFILE_CARD   = { columns: 12, min_columns: 6, rows: "auto" };
+/* Wider floor: this one carries a map and the control panels under it, and it is the
+   tallest of the three by a factor of four. */
+export const GRID_DASHBOARD_CARD = { columns: 12, min_columns: 8, rows: "auto" };

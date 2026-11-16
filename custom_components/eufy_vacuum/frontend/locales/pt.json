@@ -1156,6 +1156,8 @@
     "editor_pick_vacuum": "— escolher um aspirador —",
     "editor_room_label": "Divisão",
     "editor_select_vacuum_first": "Selecione primeiro um aspirador.",
+    "editor_va_theme_hint": "Substitui o tema do Home Assistant pelo definido para este aspirador. Desativado por predefinição.",
+    "editor_va_theme_label": "Usar o tema do Vacuum Agent",
     "editor_vacuum_label": "Aspirador",
     "passes_1": "1 passagem",
     "passes_2": "2 passagens",
