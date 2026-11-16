@@ -77,7 +77,7 @@ Per-render, resolved theme values are written as inline `--evcc-*` custom proper
 **When it runs:** the first effectful call in `_render()` (`main.js::_render`); once post-library-load (`main.js::_loadInitialThemeState`); plus 15 event-driven callsites in `bindings/theme.js` (e.g. preset, mode `bindings/theme.js#CNW1D5GX`, token, color `bindings/theme.js#CNFQSNRH`, alpha, colormix, backend refresh `bindings/theme.js::_refreshThemeFromBackend`) for immediate editor feedback without waiting for a full render.
 
 **The actual writer — `applyDynamicTheme(card, resolvedTheme)`** (`styles/index.js::applyDynamicTheme`):
-- Iterates `THEME_TOKEN_REGISTRY` and **removes** any prop absent/null/empty in `tokens` (`styles/index.js#CN344YSE`) — so a cleared draft value falls back to the foundation default instead of leaving a stale inline value.
+- Iterates `THEME_TOKEN_REGISTRY` and **removes** any prop absent/null/empty in `tokens` (`styles/apply-tokens.js#CN344YSE`) — so a cleared draft value falls back to the foundation default instead of leaving a stale inline value.
 - Then `host.style.setProperty(property, asComponents ?? value)` for every present token (`styles/index.js::applyDynamicTheme`) — `--evcc-animal-*` tokens branch through `styles/index.js::animalHslComponents` first, because they are consumed as bare `hsl()` components.
 
 **Trust boundary:** apply-theme does NOT resolve the cascade — it just writes an already-merged `tokens` map. The default→theme→override layering resolves upstream in `resolvedTheme()` (§3.3).
