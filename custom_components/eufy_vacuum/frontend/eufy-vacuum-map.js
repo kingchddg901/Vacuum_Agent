@@ -925,7 +925,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(x)}/samples.jsonl</pre>
         </div>
 
       </div>
-    `},r._renderRoomsViewToggle=function(t,e){let a=t.isMapViewActive?.()??!1;return`
+    `},r._renderRoomsViewToggle=function(t,e){let a=t.isMapViewActive?.()??!1,n=(t.mapSegments?.()?.length??0)>0;return`
       <div class="evcc-rooms-view-toggle">
         <button
           class="evcc-rooms-view-toggle-btn${a?"":" active"}"
@@ -982,6 +982,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(x)}/samples.jsonl</pre>
           </svg>
         </button>
         ${a?`
+        ${n?`
         <button
           class="evcc-rooms-view-toggle-btn${t.mapFloorTextureEnabled?.()??!0?" active":""}"
           data-action="map-texture-toggle"
@@ -994,6 +995,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(x)}/samples.jsonl</pre>
             <path d="M2 6 L6 2 M2 10 L10 2 M2 14 L14 2 M6 14 L14 6 M10 14 L14 10"/>
           </svg>
         </button>
+        `:""}
         <button
           class="evcc-rooms-view-toggle-btn${t.mapRoomLabelsEnabled?.()??!0?" active":""}"
           data-action="map-labels-toggle"

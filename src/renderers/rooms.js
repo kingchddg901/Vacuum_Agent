@@ -261,6 +261,17 @@ export function applyRoomsRenderers(proto) {
 
   proto._renderRoomsViewToggle = function (state, ctx) {
     const mapActive = state.isMapViewActive?.() ?? false;
+    /* The SVG-POLYGON floor layer only exists where there are segments to paint. A raster
+       map (room_pixels, rids from the raster) has none, so `_renderFloorTexturePolygon` is
+       never called and `mapFloorTextureEnabled` has nothing to gate -- this button sat
+       there doing nothing, beside the button that DOES work, under a near-identical name.
+       THE GATE WAS ASKING THE WRONG QUESTION. `mapActive` is whether the user is looking at
+       the map, not whether the thing this button controls is drawn. Same shape as the
+       companion row in issue #82: a control for something that is not there, visible
+       because its gate tested the SURFACE instead of the SUBJECT.
+       Nothing is lost on a raster map -- its floor has its own toggle
+       (`toggle-floor-texture` -> useFloorTexture -> isFloorRenderActive). */
+    const hasSegmentLayer = (state.mapSegments?.()?.length ?? 0) > 0;
 
     return `
       <div class="evcc-rooms-view-toggle">
@@ -319,6 +330,7 @@ export function applyRoomsRenderers(proto) {
           </svg>
         </button>
         ${mapActive ? `
+        ${hasSegmentLayer ? `
         <button
           class="evcc-rooms-view-toggle-btn${(state.mapFloorTextureEnabled?.() ?? true) ? " active" : ""}"
           data-action="map-texture-toggle"
@@ -331,6 +343,7 @@ export function applyRoomsRenderers(proto) {
             <path d="M2 6 L6 2 M2 10 L10 2 M2 14 L14 2 M6 14 L14 6 M10 14 L14 10"/>
           </svg>
         </button>
+        ` : ""}
         <button
           class="evcc-rooms-view-toggle-btn${(state.mapRoomLabelsEnabled?.() ?? true) ? " active" : ""}"
           data-action="map-labels-toggle"
