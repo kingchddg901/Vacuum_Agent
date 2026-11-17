@@ -105,20 +105,23 @@ export const DASHBOARD_CARD_TOKENS = [
 
      TYPES. The three paddings are compound values (two and three parts), which
      cannot be a slider -- src/renderers/theme.js renders only single scalars as
-     one -- so they are `text`. Field gap is a single length and gets a real
+     one -- so they are `lengths`: still a text box, but one that states it wants
+     CSS lengths and coerces a bare number to px. They shipped as the generic
+     `text`, whose box said only the word "Default", which is what issue #83 asked
+     about. Field gap is a single length and gets a real
      slider with an explicit range, because this group's SLIDER_CONFIG net is
      {0,8,0.5} and a 6px gap sits inside it. */
 
   // room-card `.header` is `14px 16px 12px`; dashboard-card's is `14px 16px 10px`.
   // The 2px disagreement is real and unexplained; each site keeps its own literal
   // as the final fallback, so setting this token is what makes them agree.
-  cardToken.text(
+  cardToken.lengths(
     "--evcc-card-header-padding",
     "Header Padding",
   ),
 
   // The room row's head. The one knob a user with a long room list asks for.
-  cardToken.text(
+  cardToken.lengths(
     "--evcc-card-row-padding",
     "Row Padding",
   ),
@@ -126,7 +129,7 @@ export const DASHBOARD_CARD_TOKENS = [
   // The dashboard card's section inset -- its only breathing-room control.
   // NOT the frame padding: that was declined deliberately, because only the
   // profile card pads its frame, so one token would move one card of three.
-  cardToken.text(
+  cardToken.lengths(
     "--evcc-card-section-padding",
     "Section Padding",
   ),

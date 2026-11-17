@@ -173,6 +173,26 @@ function defaultScalarUnitForToken(token) {
   return "";
 }
 
+/**
+ * Which placeholder a free-text token row shows — issue #83.
+ *
+ * The generic placeholder is the single word "Default", which states that an empty box
+ * uses the default and NOTHING about what may go in it. For a colour or a slider that is
+ * fine, because the control itself shows the shape of the value. For a bare text box it
+ * is the whole of the user's information: "Section Padding · Default" does not say that
+ * it wants CSS lengths, does not say how many, and does not say that leaving it blank
+ * inherits rather than zeroes. The reporter asked what these boxes were for.
+ *
+ * Keyed on TYPE, not per token, so it costs one string per shape rather than one per
+ * token — and `lengths` exists as a type precisely so this can be said accurately
+ * without claiming it about the gradients and the easing that also use a text box.
+ */
+function placeholderKeyForToken(token) {
+  if (token.type === "lengths") return "theme.token_placeholder_lengths";
+  if (token.type === "shadow") return "theme.token_placeholder_shadow";
+  return "theme.token_default_placeholder";
+}
+
 function isScalarThemeType(token) {
   return token.type === "size" || token.type === "number" || token.type === "duration";
 }
@@ -402,8 +422,16 @@ export function applyThemeRenderers(proto) {
         </div>
 
         <label class="evcc-modified-toggle">
+          ${/* ISSUE #83 -- this was `?checked="${state.modifiedOnly}"`, a LIT binding, and
+               these renderers return HTML STRINGS into innerHTML. Measured on the live box
+               against a real upgraded ha-checkbox: `?checked="true"` leaves `.checked`
+               FALSE and the element carries an attribute literally named `?checked`, while
+               plain `checked` gives true. So this box had never once rendered ticked --
+               tick it, the filter applies and the tick springs back, which on its own
+               reads as "the filter does not show my changes". It was the only `?attr=`
+               binding in the whole renderer tree, which is the tell. */ ""}
           <ha-checkbox
-            ?checked="${state.modifiedOnly}"
+            ${state.modifiedOnly ? "checked" : ""}
             data-theme-modified-only
           ></ha-checkbox>
           <span>${this.t("theme.modified_only")}</span>
@@ -933,9 +961,22 @@ export function applyThemeRenderers(proto) {
               Hoisted and made sticky, it is stated once, stays on screen while
               you scroll the list it describes, and can WRAP freely — a second
               line costs 14px once instead of 14px times 303. */""}
-        ${anyColorRow ? `
-          <div class="evcc-token-hint-sticky">${this.t("theme.color_hint")}</div>
-        ` : ""}
+        ${/* ISSUE #83, and this line is the half of that report NO token could answer.
+              The reporter was editing Home Assistant THEME YAML and watching this list
+              for his changes. They were never going to appear: HA theme variables and
+              these --evcc-* tokens are two separate systems, and the editor said so
+              nowhere, so the only available conclusion was that the filter was broken.
+              Fixing the filter alone would have left him in the same place.
+
+              UNCONDITIONAL, unlike the colour hint it now shares a bar with: the scope
+              fact is true of every group, so gating it on `anyColorRow` would hide it
+              from exactly the padding/shadow groups he was looking at. One sticky
+              element, not two stacked -- the bar already owns its background and the
+              rows already scroll under it. */""}
+        <div class="evcc-token-hint-sticky">
+          <div>${this.t("theme.tokens_scope_hint")}</div>
+          ${anyColorRow ? `<div>${this.t("theme.color_hint")}</div>` : ""}
+        </div>
         <div class="evcc-token-editor">
           <div class="evcc-token-list">
           ${renderedGroups.length ? renderedGroups.join("") : `
@@ -1283,7 +1324,7 @@ ${fontPresets}
             type="text"
             class="token-input"
             value="${this.escapeHtml(value)}"
-            placeholder="${this.t("theme.token_default_placeholder")}"
+            placeholder="${this.escapeHtml(this.t(placeholderKeyForToken(token)))}"
             data-theme-token="${this.escapeHtml(token.key)}"
           />
         </div>

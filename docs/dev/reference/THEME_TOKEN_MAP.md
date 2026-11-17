@@ -123,9 +123,9 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 |---|---|---|---|---|
 | `--evcc-card-frame-border-width` | Frame Border Width | size | — | 0–8 step 0.5 |
 | `--evcc-card-frame-shadow` | Frame Shadow | shadow | — |  |
-| `--evcc-card-header-padding` | Header Padding | text | — |  |
-| `--evcc-card-row-padding` | Row Padding | text | — |  |
-| `--evcc-card-section-padding` | Section Padding | text | — |  |
+| `--evcc-card-header-padding` | Header Padding | lengths | — |  |
+| `--evcc-card-row-padding` | Row Padding | lengths | — |  |
+| `--evcc-card-section-padding` | Section Padding | lengths | — |  |
 | `--evcc-card-field-gap` | Field Gap | size | — | 0–16 step 0.5 |
 | `--evcc-card-action-glow` | Action Glow | shadow | — |  |
 | `--evcc-card-font-scale` | Font Scale | number | — | 0.5–2 step 0.05 |
@@ -482,9 +482,9 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-radius-inner` | Radius Inner | size | `8px` |  |
 | `--evcc-radius-panel` | Radius Panel | size | — |  |
 | `--evcc-section-gap` | Section Gap | size | — |  |
-| `--evcc-space-lg` | Space Lg | text | `16px` |  |
-| `--evcc-space-md` | Space Md | text | `12px` |  |
-| `--evcc-space-sm` | Space Sm | text | `8px` |  |
-| `--evcc-space-xs` | Space Xs | text | `4px` |  |
+| `--evcc-space-lg` | Space Lg | lengths | `16px` |  |
+| `--evcc-space-md` | Space Md | lengths | `12px` |  |
+| `--evcc-space-sm` | Space Sm | lengths | `8px` |  |
+| `--evcc-space-xs` | Space Xs | lengths | `4px` |  |
 | `--evcc-transition-normal` | Transition Normal | motion | `150ms ease` |  |
 

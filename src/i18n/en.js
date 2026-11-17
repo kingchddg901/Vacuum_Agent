@@ -1882,7 +1882,7 @@ export const en = {
   "theme.export": "Export",
   "theme.export_title": "Copy theme JSON to clipboard",
   "theme.filter_all": "All",
-  "theme.filter_modified": "Modified",  // filter chip: show only tokens changed from default ('modified' = edited)
+  "theme.filter_modified": "Customised",  // filter chip: show only tokens the USER has set — their saved theme's values AND unsaved draft edits. Was "Modified" with a comment claiming 'changed from default', which the code never did: it tested draft-only, so the chip emptied the moment you saved (issue #83). The chip is a NOUN-ADJECTIVE describing the tokens, not an action.
   "theme.filters": "Filters",
   "theme.filters_count": "Filters ({count})",
   "theme.floor_scope_title": "Floor type to export as a shareable preset",  // Tooltip on the floor-type picker: 'floor' = a floor-TEXTURE type (tile/wood/marble), not a building storey.
@@ -1910,7 +1910,7 @@ export const en = {
   "theme.mode_this_device": "This device only",
   "theme.mode_this_device_only": "this device only",  // theme appearance scope value: applies only on this browser/device
   "theme.mode_use_everywhere": "Use everywhere",
-  "theme.modified_only": "Modified Only",
+  "theme.modified_only": "Unsaved only",  // checkbox beside the token search: narrow the list to edits not yet saved. DISTINCT from the "Customised" chip, which also includes the saved theme's own values — two notions, two controls, and conflating them is what issue #83 reported.
   "theme.no_tokens_match_filters": "No tokens match the current theme filters.",
   "theme.preset_active": "Active",  // badge on a theme card: this is the currently applied theme
   "theme.presets_empty": "No themes available.",
@@ -1929,6 +1929,9 @@ export const en = {
   "theme.tag_remove_title": "Remove tag",
   "theme.token_default_placeholder": "Default",  // Greyed placeholder in an empty token text input meaning 'uses the default value'; a hint, not a Default button/action.
   "theme.token_draft": "Draft",  // chip on a token row: this token value is an unsaved/draft edit
+  "theme.token_placeholder_lengths": "e.g. 12px 16px — blank inherits",  // Greyed placeholder in a CSS length-list token box (padding, spacing). Example FIRST so the useful half survives truncation in a narrow box. 'blank inherits' is the fact that an empty box falls through to the panel's token, not to zero.
+  "theme.token_placeholder_shadow": "e.g. 0 2px 6px rgba(0,0,0,0.3)",  // Greyed placeholder in a box that takes a full CSS box-shadow, including a comma-separated stack. Not translated beyond the 'e.g.' — the rest is CSS.
+  "theme.tokens_scope_hint": "Vacuum Agent's own tokens. Home Assistant theme variables are a separate system — a change in your HA theme does not appear here.",  // Sticky one-line hint at the top of the token list. Issue #83: the reporter was editing HA theme YAML and watching this list for his changes, which could never show up. Nothing in the editor said the two systems were separate.
   "theme.upload": "Upload",
   "theme.upload_title": "Upload a theme .json file",
 
@@ -2336,6 +2339,7 @@ export const en = {
   // --- vocab: token_type (the small type chip on every theme-editor token row) ---
   "vocab.token_type.color": "color",
   "vocab.token_type.text": "text",
+  "vocab.token_type.lengths": "lengths",  // token-type chip: a 1-4 part CSS length list (padding, a gap pair). Lower-case like its siblings — it labels a kind, not a thing.
   "vocab.token_type.shadow": "shadow",
   "vocab.token_type.size": "size",
   "vocab.token_type.number": "number",

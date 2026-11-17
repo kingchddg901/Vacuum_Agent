@@ -871,6 +871,32 @@ export function applyThemeState(proto) {
    * each expanded section can narrow its own visible rows without
    * affecting sibling groups.
    */
+  /**
+   * Has the USER set this token — issue #83.
+   *
+   * `resolvedTheme()` stamps four provenances, and only two of them are the user:
+   *
+   *   "draft"   an unsaved edit in the working draft        -> THEIRS
+   *   "theme"   a value their saved VA theme carries        -> THEIRS
+   *   "default" a value the editor SEEDED so a swatch opens -> not theirs
+   *   (absent)  falls back to "ha" at the read site         -> not theirs
+   *
+   * The "Customised" chip used to test `source !== "draft"`, i.e. UNSAVED ONLY, so it
+   * emptied the moment you pressed Save and the per-group counts all fell to (0 / N).
+   * That is what the #83 reporter was looking at when he said he changed variables and
+   * "the filter does not show my changes" -- he had saved them.
+   *
+   * WHY NOT `source !== "default"`, which is the obvious spelling: the read sites use
+   * `sources[key] || "ha"`, so a token the user never touched is "ha", not "default" --
+   * and "ha" would pass that test. Every token in the registry would read as customised.
+   * The two user-owned provenances are named explicitly for that reason.
+   *
+   * The UNSAVED-only notion is still wanted and still exists: it is the "Unsaved only"
+   * checkbox (`modifiedOnly`), which keeps `source === "draft"` and is pinned by [FT-2].
+   * Two notions, two controls, each labelled as what it does.
+   */
+  const isCustomisedTokenSource = (source) => source === "draft" || source === "theme";
+
   proto.filteredThemeTokens = function (allTokensRegistry, options = {}) {
     const state = this._ensureThemeState();
     const { tokens, sources } = this.resolvedTheme();
@@ -904,7 +930,9 @@ export function applyThemeState(proto) {
          GROUP FILTER
          ----------------------------------------------------- */
       if (selectedGroupFilter === "modified") {
-        if (source !== "draft") {
+        // The "Customised" chip: saved OR unsaved, both are the user's. See
+        // isCustomisedTokenSource above for why this is not `!== "default"`.
+        if (!isCustomisedTokenSource(source)) {
           return false;
         }
       } else if (selectedGroupFilter !== "all" &&
@@ -956,7 +984,9 @@ export function applyThemeState(proto) {
     const total = visibleGroupTokens.length;
     const modified = visibleGroupTokens.filter((tokenDef) => {
       const source = sources[tokenDef.key] || "ha";
-      return source === "draft";
+      // Counts must agree with the chip that filters on them, or a group reading
+      // (0 / 12) sits directly above twelve rows the chip would show.
+      return isCustomisedTokenSource(source);
     }).length;
 
     return { modified, total };

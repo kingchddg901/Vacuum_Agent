@@ -8,6 +8,10 @@
 //           preset-preview swatch also call); plus the `sources` provenance map.
 //   [FT-*]  filteredThemeTokens — excludeKeys, modifiedOnly, group filter (incl. the
 //           "modified" special case and the "Group — subgroup" prefix), global search.
+//           TWO notions of "changed" live here and they are NOT the same predicate:
+//           `modifiedOnly` (the "Unsaved only" checkbox) is draft-sourced only [FT-2],
+//           while the "Customised" chip is draft OR theme [FT-3] — because a saved
+//           customisation is still the user's, which is the #83 defect.
 //   [GS-*]  tokenMatchesGlobalThemeSearch — label/key/value/aliases/usage/affects, empty query.
 //   [FP-*]  filteredPresetIds — OR-within-facet / AND-across-facets over derived tag sets,
 //           name + tag substring search, and preserved library (Object.keys) order.
@@ -228,6 +232,12 @@ function ftCard(over = {}) {
     activeThemeId: "t1",
     library: { t1: { colors: { "--evcc-accent": "#123456" } } },
     workingDraft: { colors: { "--evcc-surface": "#abcdef" }, alpha: {}, tokens: {} },
+    // Seeded so the PER-GROUP path is reachable. This fixture writes _themeState
+    // directly and so bypasses _ensureThemeState's lazy init, where production gets
+    // this field — without it `filteredThemeTokensForGroup` (and therefore
+    // `themeGroupCounts`) throws on `state.groupSearchQueryByName[group]`, so no test
+    // could reach the group headers at all. Empty = no per-group search active.
+    groupSearchQueryByName: {},
     ...over,
   });
 }
@@ -256,10 +266,70 @@ test("[FT-2] modifiedOnly keeps only draft-sourced tokens", () => {
   assert.deepEqual(keys, ["--evcc-surface"]);
 });
 
-test("[FT-3] group filter 'modified' == draft-only (independent of modifiedOnly flag)", () => {
+test("[FT-3] group filter 'modified' is CUSTOMISED — saved theme values AND unsaved drafts", () => {
+  // ISSUE #83, and this test used to assert the defect. It pinned draft-only, which is
+  // what shipped and exactly what the reporter hit: he changed variables, SAVED them,
+  // and the filter went empty while the group headers all read (0 / N).
+  //
+  // The fixture is itself the demonstration — `--evcc-accent` is a value a SAVED theme
+  // carries (his case) and `--evcc-surface` is an unsaved draft. Both are the user's.
   const c = ftCard({ selectedGroupFilter: "modified" });
   const keys = c.filteredThemeTokens(REG).map((t) => t.key);
-  assert.deepEqual(keys, ["--evcc-surface"]); // only the draft-sourced one
+  assert.deepEqual(keys, ["--evcc-accent", "--evcc-surface"]);
+});
+
+test("[FT-3b] 'modified' excludes untouched tokens, and stays distinct from 'Unsaved only'", () => {
+  // THE RED INPUT, and it is the obvious wrong spelling of the fix: `source !== "default"`.
+  // The read sites use `sources[key] || "ha"`, so a token nobody ever touched resolves to
+  // "ha" — which PASSES that test and makes every token in the registry read as
+  // customised. The chip would then be indistinguishable from "All".
+  const c = ftCard({ selectedGroupFilter: "modified" });
+  const keys = c.filteredThemeTokens(REG).map((t) => t.key);
+
+  // SAMPLE CHECK FIRST: if the fixture set every token, the exclusions below would pass
+  // vacuously and this test would be measuring nothing.
+  assert.ok(REG.length > keys.length,
+    "the fixture must leave untouched tokens in REG, or the exclusion proves nothing");
+  for (const k of ["--evcc-cat-eye", "--evcc-dog-eye"]) {
+    assert.ok(!keys.includes(k), `${k} is unset in the fixture and must not read as customised`);
+  }
+
+  // And the two notions must not collapse into one control's meaning: the checkbox is
+  // still UNSAVED-only. If these ever return the same set, one of the two labels is lying.
+  const unsaved = ftCard({ modifiedOnly: true }).filteredThemeTokens(REG).map((t) => t.key);
+  assert.deepEqual(unsaved, ["--evcc-surface"]);
+  assert.notDeepEqual(unsaved, keys,
+    "'Customised' and 'Unsaved only' must differ — that distinction is the whole fix");
+});
+
+test("[FT-3c] group header counts agree with the 'Customised' chip", () => {
+  // THE RED INPUT: leaving themeGroupCounts on `source === "draft"` while the chip tests
+  // draft-OR-theme. The header then reads (1 / N) immediately above two rows the chip
+  // would show — and after a Save it reads (0 / N) above every row the user customised,
+  // which is exactly the screenshot attached to issue #83. The two were separate
+  // expressions of one question and nothing made them agree.
+  const c = ftCard();
+  const chipKeys = ftCard({ selectedGroupFilter: "modified" })
+    .filteredThemeTokens(REG)
+    .map((t) => t.key);
+
+  // SAMPLE CHECK FIRST. With only ONE customised token, draft-only and draft-or-theme
+  // return the same count and this test could not tell them apart — it would pass on the
+  // defect. The fixture carries a theme-sourced token AND a draft-sourced one.
+  assert.ok(
+    chipKeys.length > 1,
+    "the fixture must carry more than one customised token or this cannot discriminate",
+  );
+
+  // Summed over every group the REGISTRY declares, not a hand-written list, so a group
+  // added later cannot slip past.
+  const groups = [...new Set(REG.map((t) => t.group))];
+  const summed = groups.reduce((n, g) => n + c.themeGroupCounts(g, REG).modified, 0);
+  assert.equal(
+    summed,
+    chipKeys.length,
+    `group headers sum to ${summed} customised tokens while the chip lists ${chipKeys.length}`,
+  );
 });
 
 test("[FT-4] exact-group filter keeps that group AND its 'Group — subgroup' children", () => {

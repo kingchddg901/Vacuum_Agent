@@ -31,15 +31,22 @@ export const FOUNDATION_TOKENS = [
   foundationToken.size("--evcc-radius-inner", "Radius Inner"),
   foundationToken.size("--evcc-radius-panel", "Radius Panel"),
   foundationToken.size("--evcc-section-gap", "Section Gap"),
-  foundationToken.text("--evcc-space-lg", "Space Lg"),
-  foundationToken.text("--evcc-space-md", "Space Md"),
-  foundationToken.text("--evcc-space-sm", "Space Sm"),
+  foundationToken.lengths("--evcc-space-lg", "Space Lg"),
+  foundationToken.lengths("--evcc-space-md", "Space Md"),
+  foundationToken.lengths("--evcc-space-sm", "Space Sm"),
   // Registered 2026-11-16, and the ONLY one of the four that was not. It has been
   // declared in CSS since the family was completed (styles/foundation.js:297 = 4px,
   // and scripts/check-styles.mjs:278-279 records it being taken OUT of
   // KNOWN_DANGLING) -- so it painted correctly everywhere and offered no control,
-  // which is indistinguishable from a token that does not exist. `.text` matches its
-  // three siblings above rather than `.size`, which is what they all are.
-  foundationToken.text("--evcc-space-xs", "Space Xs"),
+  // which is indistinguishable from a token that does not exist.
+  //
+  // `.lengths` matches its three siblings above, and the choice against `.size` is
+  // deliberate rather than inherited. Each of the four IS a single length, so `.size`
+  // and its slider would fit -- but `.size` requires a declared range, and these four
+  // ARE the scale every other spacing value in the system is measured against, so
+  // picking bounds for them would be a decision about the scale itself rather than about
+  // a control. `.lengths` takes any length in any unit, needs no range, says in its
+  // placeholder what it wants, and coerces a bare number to px (issue #83).
+  foundationToken.lengths("--evcc-space-xs", "Space Xs"),
   foundationToken.motion("--evcc-transition-normal", "Transition Normal"),
 ];

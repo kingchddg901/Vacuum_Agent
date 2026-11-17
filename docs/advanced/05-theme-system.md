@@ -139,12 +139,29 @@ A search box at the top of the editor filters tokens across all groups. Search m
 
 Within each expanded group, a per-group search input lets you narrow further without affecting sibling groups.
 
-A **Modified Only** checkbox next to the search box restricts the view to tokens that are currently in the draft (changed from the theme base).
+Two controls narrow the list to what you have changed, and they mean **different** things:
+
+- An **Unsaved only** checkbox beside the search box shows just the edits you have not
+  saved yet — the working draft. It empties when you press Save, which is correct: once
+  saved, nothing is unsaved.
+- A **Customised** chip in the filter row shows every token *you* have set, saved or not.
+  This is the one you want for "what has my theme actually changed?".
+
+!!! note "Changed in 2.7.1"
+    There used to be one notion, labelled **Modified**, and it was the *unsaved* one — so it
+    emptied the moment you pressed Save, and every group header fell to `0 / N` while your
+    customisations sat right there in the list. Reported in
+    [issue #83](https://github.com/kingchddg901/Vacuum_Agent/issues/83).
+
+The token list also states, once at the top, that these are Vacuum Agent's **own** tokens.
+Home Assistant theme variables are a separate system and never appear here — see
+[Styling the cards from a Home Assistant theme](../user-guide/20-dashboard-and-room-cards.md#styling-the-cards-from-a-home-assistant-theme)
+for the variables HA *can* reach.
 
 The filter chip row above the token list offers quick shortcuts:
 
 - **All** — show all tokens (default)
-- **Modified** — show only draft-modified tokens across all groups
+- **Customised** — every token you have set, saved or unsaved, across all groups
 - Any individual group name — show only that group's tokens
 
 ---

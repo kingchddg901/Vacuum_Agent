@@ -8,7 +8,7 @@
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 
-- Catalog **434** · consumer `var()` uses **2541**
+- Catalog **434** · consumer `var()` uses **2552**
 - **286** with a STATIC consumer · **148** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
 - `var()` → non-catalog tokens **13** · dynamic `var(--evcc-…${…})` sites **3**
 
@@ -16,7 +16,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 > - **98** `animal` — `src/theme-tokens/animals.js` builds `--evcc-animal-${animal}-${suffix}`; consumed in `animal-svg/`
 > - **38** `floor-material` — `src/renderers/floor-texture-surface.js` and `src/bindings/map.js` build `--evcc-floor-${type}-…` from the material key
 > - **12** `room-fill` — `src/cards/map-room-color.js` — `roomFillTokenName(i)` builds `--evcc-room-fill-N`, 1-based and wrapping at 12 (contract pinned by MRC-1..MRC-7)
-- **Token CSS coverage 98.8%** — 1442/1460 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
+- **Token CSS coverage 98.8%** — 1445/1463 color declarations resolve through a token (18 deliberate `theme-lint-ignore`, **0 stray**); **100.0%** of colors that should be themed. Scope: `src/styles/*` (minus token defs) + the standalone cards; guarded by `scripts/check-styles.mjs`.
 
 ---
 
@@ -24,6 +24,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 **`--evcc-accent`** — Accent · default `var(--accent-color, #3b82f6)` src/styles/foundation.js, src/styles/modal-host.js
 - custom_components/eufy_vacuum/themes/preloaded.py
+- src/cards/_shared.js (accent-color)
 - src/cards/_shared.js (color)
 - src/cards/dashboard-card.js (--accent)
 - src/cards/dashboard-card.js
@@ -148,6 +149,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/cards/_shared.js (color)
 - src/cards/dashboard-card.js (--text-primary)
 - src/cards/dashboard-card.js
+- src/cards/dashboard-card.js (color)
 - src/cards/profile-card.js (--text-primary)
 - src/room-card.js (--text-primary)
 - src/room-card.js
@@ -189,6 +191,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-text-secondary`** — Text Secondary · default `var(--secondary-text-color, rgba(240,242,245,0.72))` src/styles/foundation.js, src/styles/modal-host.js
 - custom_components/eufy_vacuum/themes/preloaded.py
 - src/cards/dashboard-card.js
+- src/cards/profile-card.js (color)
 - src/room-card.js
 - src/styles/base-station.js (color)
 - src/styles/external-jobs.js (color)
@@ -339,6 +342,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-surface-panel`** — Surface Panel · default `color-mix(in srgb, var(--evcc-surface-base) 85%, var(--evcc-overlay-ink) 15%)` src/styles/foundation.js, src/styles/modal-host.js
 - custom_components/eufy_vacuum/themes/preloaded.py
 - src/cards/dashboard-card.js
+- src/cards/dashboard-card.js (background)
 - src/room-card.js
 - src/styles/base-station.js (background)
 - src/styles/external-jobs.js (background)
@@ -1884,6 +1888,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-radius-inner`** — Radius Inner · default `8px` src/styles/foundation.js
 - src/cards/_shared.js (border-radius)
 - src/cards/dashboard-card.js (border-radius)
+- src/room-card.js (border-radius)
 - src/styles/base-station.js (border-radius)
 - src/styles/external-jobs.js (border-radius)
 - src/styles/job-summary.js (border-radius)

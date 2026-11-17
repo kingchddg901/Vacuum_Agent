@@ -59,6 +59,15 @@
 export const THEME_TOKEN_TYPES = Object.freeze([
   "color",
   "text",
+  // A 1-4 part CSS LENGTH LIST (padding, margin, a gap pair). A refinement of
+  // "text", not a sibling of "size": `size` is ONE scalar and renders a slider,
+  // which cannot express `14px 16px 10px`. Splitting it out of `text` is what
+  // lets the editor say what the box wants -- a bare `text` box is also used for
+  // gradients and an easing (--evcc-learning-*-gradient, --evcc-learning-anim-ease),
+  // so a "e.g. 12px 16px" hint on the shared type would be wrong for those.
+  // Issue #83: the reporter's complaint was a text box whose only content was the
+  // word "Default".
+  "lengths",
   "shadow",
   "size",
   "number",
@@ -69,6 +78,52 @@ export const THEME_TOKEN_TYPES = Object.freeze([
 ]);
 
 const VALID_TOKEN_TYPES = new Set(THEME_TOKEN_TYPES);
+
+/**
+ * A bare number in a CSS length list means px — issue #83, "or at least default to px".
+ *
+ * `padding: 8` is not valid CSS and silently does nothing, so a user who types the
+ * number they mean gets no padding and no error. This coerces each bare number to px
+ * and leaves everything else exactly as typed.
+ *
+ * IT FAILS OPEN, DELIBERATELY. A normaliser that mangles a valid `calc(100% - 2px)` into
+ * nonsense is worse than one that does nothing, because the user cannot see why their
+ * value stopped working. Two things provide that, and only one of them is a guard:
+ *
+ *   1. THE PART REGEX. A part is only rewritten if it is a bare number END TO END, so
+ *      every part of `calc(100% - 2px)`, `min(4px, 1%)` and `1px, 2px` is left alone
+ *      without anything having to recognise the function. THIS is what protects them.
+ *   2. THE >4 GUARD. More than four whitespace-separated parts is not a length list at
+ *      all, so it is returned whole — [LEN-9].
+ *
+ * THERE WAS A THIRD, `if (/[(),]/.test(raw)) return raw`, AND IT WAS REMOVED. An ablation
+ * proved it DEAD: deleting it reddened no test, because (1) already covered every input
+ * it was written for. Measured across eleven inputs it changed the answer for four, and
+ * in three of those it was the WRONG answer — `var(--evcc-space-md) 8` is a valid two-part
+ * list and the guard blocked exactly the coercion this function exists to perform, so a
+ * user mixing a token with a number silently got no padding. Dominated where it was meant
+ * to help, harmful where it acted. See [LEN-4], which now tests the mechanism that holds.
+ *
+ * The one deliberate non-coercion inside a list it CAN read is a zero: unitless `0` is
+ * valid CSS and is what people write, so `0 8` becomes `0 8px`, not `0px 8px`.
+ *
+ * Lives here rather than in bindings/theme.js because bindings cannot be imported
+ * outside a browser, and this is the half worth testing — see [LEN-*].
+ *
+ * @param {string} value raw input text
+ * @returns {string} the same list with bare numbers given px, or the input untouched
+ */
+export function normaliseLengthList(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";                 // empty means UNSET: it must stay empty so the
+                                       // var() fallback chain still inherits.
+  const parts = raw.split(/\s+/);
+  if (parts.length > 4) return raw;    // not a length list we recognise [LEN-9]
+
+  return parts
+    .map((p) => (/^-?\d*\.?\d+$/.test(p) && Number(p) !== 0 ? `${p}px` : p))
+    .join(" ");
+}
 
 /* =========================================================
    SEMANTIC SCALAR RANGES
@@ -211,6 +266,7 @@ export function makeTypedGroupToken(group, defaultType = "color") {
 
   groupedToken.color = (key, label = null) => groupedToken(key, label, "color");
   groupedToken.text = (key, label = null) => groupedToken(key, label, "text");
+  groupedToken.lengths = (key, label = null) => groupedToken(key, label, "lengths");
   groupedToken.shadow = (key, label = null) => groupedToken(key, label, "shadow");
   groupedToken.size = (key, label = null) => groupedToken(key, label, "size");
   groupedToken.number = (key, label = null) => groupedToken(key, label, "number");

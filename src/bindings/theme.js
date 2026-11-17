@@ -66,7 +66,7 @@
 import { applyThemeToCard } from "../styles/apply-theme.js";
 import { THEME_GROUPS, THEME_TOKEN_MAP, THEME_TOKEN_REGISTRY } from "../theme-tokens/index.js";
 import { sliceThemeByTypes, themeKeyCount, detectFloorScope, clampThemeScalars } from "../theme-tokens/floor-scope.js";
-import { scalarClampBounds } from "../theme-tokens/helpers.js";
+import { scalarClampBounds, normaliseLengthList } from "../theme-tokens/helpers.js";
 import { MARBLE_PRESETS } from "../theme-tokens/floor-presets.js";
 
 /* =========================================================
@@ -675,6 +675,16 @@ export function applyThemeBindings(proto) {
 
       if (this._isScalarThemeType(tokenDef.type)) {
         value = this._formatScalarThemeValue(value, tokenDef, e.currentTarget);
+      } else if (tokenDef.type === "lengths") {
+        // ISSUE #83 "or at least default to px". `padding: 8` is not valid CSS and does
+        // NOTHING, silently, so the number the user meant has to become 8px somewhere.
+        //
+        // HERE WE COERCE ONLY WHAT WE PERSIST -- `e.currentTarget.value` is deliberately
+        // left alone. This fires on every keystroke, so rewriting the box would retype
+        // the user's input underneath them and jump the caret ("8" -> "8px" while they
+        // were still heading for "80"). The visible rewrite happens once, on `change`
+        // (blur/Enter), below.
+        value = normaliseLengthList(value);
       }
 
       const payload = this._buildDraftPayload(token, value, tokenDef);
@@ -724,6 +734,19 @@ export function applyThemeBindings(proto) {
     // anchor: CNKW51R0
     this.card._onAll("[data-theme-token]", "change", async (e) => {
       const isRange = e.currentTarget.type === "range";
+
+      // ISSUE #83 -- the VISIBLE half of the px coercion. On commit (blur/Enter) the box
+      // is rewritten to the value that was actually stored, so the user sees `8` become
+      // `8px` and learns the format from the control instead of from a doc. Idempotent:
+      // normalising `8px` returns `8px`, so a commit that changes nothing writes nothing.
+      if (!isRange) {
+        const lenToken = e.currentTarget.dataset.themeToken;
+        const lenDef = THEME_TOKEN_MAP[lenToken];
+        if (lenDef && lenDef.type === "lengths") {
+          const shown = normaliseLengthList(e.currentTarget.value);
+          if (shown !== e.currentTarget.value) e.currentTarget.value = shown;
+        }
+      }
 
       if (isRange) {
         const token = e.currentTarget.dataset.themeToken;

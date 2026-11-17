@@ -149,8 +149,9 @@ The full type vocabulary, defined in `helpers.js`:
 | Type | What it controls |
 |---|---|
 | `color` | A color value — hex, CSS color-mix expression, named color, or var() reference. Rendered as a color picker + text input pair with an alpha slider. |
-| `text` | An arbitrary CSS text value — used for spacing shorthands like `--evcc-space-sm`. Rendered as a plain text input. |
-| `shadow` | A CSS box-shadow value. Rendered as a text input. |
+| `text` | An arbitrary CSS text value, where nothing more specific fits — a gradient, an easing. Rendered as a plain text input with the generic `Default` placeholder. |
+| `lengths` | A 1–4 part CSS **length list**: `padding`, a `gap` pair, the `--evcc-space-*` family. A refinement of `text`, **not** a sibling of `size` — `size` is one scalar and renders a slider, which cannot express `14px 16px 10px`. Its input shows a worked example instead of the word `Default`, and a bare number is coerced to `px` on commit (`normaliseLengthList` in `theme-tokens/helpers.js`, `[LEN-*]`). Split out of `text` for issue #83: a hint on the shared type would have told a gradient that it wanted `12px 16px`. |
+| `shadow` | A CSS box-shadow value, including a comma-separated stack. Rendered as a text input showing a worked example. |
 | `size` | A dimensional value with a unit (px, rem, em, %, etc.). Rendered as a range slider + text input pair. |
 | `number` | A unitless number (e.g. `0.985` for press scale, `0` or `1` for texture enable flags). Rendered as a range slider + number input pair. |
 | `duration` | A CSS time value (ms or s) for animation durations. Rendered as a range slider + text input pair. |
