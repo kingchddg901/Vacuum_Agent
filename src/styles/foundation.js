@@ -208,7 +208,17 @@ export const foundationTokens = `
        line here cannot be partially applied. The seam generalises by the same
        one-line rule if a second leaf ever earns it; the shipped surface stays one.
        Gated by SCO-* in styles/surface-card-override.test.mjs (anchor INYK0JCG). */
-    --evcc-surface-card:   var(--evcc-surface-card-override, var(--evcc-surface-base));
+    /* anchor: RNT9NEY2  the HA card-frame inputs -- the replica set
+       --ha-card-background and --ha-card-border-color sit INSIDE these two declarations,
+       the same shape --ha-card-border-radius already uses at --evcc-radius-card below.
+       THIS IS THE ONLY PLACE EITHER NAME MAY BE READ. Reading one in a card's own chain
+       is dead (these tokens are always declared, so a rung behind them never computes) or
+       inverted (a rung ahead of them lets an HA theme beat a VA one). Pinned by [CFR-11].
+       The VA editor writes --evcc-surface-card INLINE on the card host, and inline beats
+       this :host rule, so this declaration computes only when no VA value exists:
+       VA theme -> --evcc-surface-card-override -> HA ha-card-background -> HA
+       card-background-color -> the literal. */
+    --evcc-surface-card:   var(--evcc-surface-card-override, var(--ha-card-background, var(--evcc-surface-base)));
 
     /* anchor: RNS5JWBV  the OVERLAY INK -- the one question every tinted surface
        and border asks: "what colour do I tint the base WITH?"
@@ -262,7 +272,13 @@ export const foundationTokens = `
 
     /* Borders */
     --evcc-border-subtle:  color-mix(in srgb, var(--evcc-overlay-ink) 6%, transparent);
-    --evcc-border-default: color-mix(in srgb, var(--evcc-overlay-ink) 10%, transparent);
+    /* REPLICA RNT9NEY2 -- the border half of the pair above, which carries the reasoning.
+       DELIBERATELY WIDER THAN THE FRAME, and that is a ruling of his (2026-11-16): this
+       token paints the card frame AND every other VA border, so an HA theme setting
+       ha-card-border-color moves them together rather than leaving the frame disagreeing
+       with the rows inside it. Frame-only is not reachable without the inversion described
+       above. */
+    --evcc-border-default: var(--ha-card-border-color, color-mix(in srgb, var(--evcc-overlay-ink) 10%, transparent));
     --evcc-border-strong:  color-mix(in srgb, var(--evcc-overlay-ink) 18%, transparent);
     --evcc-border-warning: rgba(255,180,0,0.35);
     --evcc-border-success: rgba(76,175,110,0.35);
@@ -306,6 +322,12 @@ export const foundationTokens = `
        BACKWARD COMPATIBILITY (DO NOT REMOVE YET)
        ======================================================= */
 
+    /* An OUTPUT for anyone's own CSS to read, not an input. It was also registered
+       as a "Card BG" editor control until 2026-11-16, which was wrong twice over:
+       every read of it sat BEHIND the always-declared --evcc-surface-card, so the
+       rung was unreachable, and it resolves TO that token anyway, so even reached it
+       could not have shown a different colour. The control is gone; the alias stays
+       because someone's custom CSS may read it. Do not register it again. */
     --evcc-card-bg:       var(--evcc-surface-card);
     --evcc-panel-bg:      var(--evcc-surface-panel);
     --evcc-bg-input:      var(--evcc-surface-input);

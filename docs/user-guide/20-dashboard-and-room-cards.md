@@ -169,7 +169,7 @@ card changes first.
 ## Styling the cards from a Home Assistant theme
 
 The cards already follow your Home Assistant theme. They don't carry a fixed palette — they
-read **eight** of Home Assistant's own theme variables and compute everything else from
+read **twelve** of Home Assistant's own theme variables and compute everything else from
 them, so a card picks up a theme you already have without being told about it.
 
 Set any of these in your HA theme and the cards follow:
@@ -184,6 +184,13 @@ Set any of these in your HA theme and the cards follow:
 | `warning-color` | "attention" states |
 | `error-color` | "problem" states (faults, unavailable) |
 | `ha-card-border-radius` | the card's corner radius |
+| `ha-card-background` | the card's own fill |
+| `ha-card-border-color` | the card's edge, and every other border derived from it |
+| `ha-card-border-width` | the thickness of the card's edge |
+| `ha-card-box-shadow` | the card's shadow |
+
+The four `ha-card-…` entries below the radius are the ones Home Assistant's own cards use,
+so a theme written for built-in cards styles these without knowing they exist.
 
 `primary-text-color` is the one worth knowing about. It is not just the text — the cards
 derive every translucent overlay from it, so it inverts the whole card with your theme:
@@ -203,18 +210,94 @@ my-theme:
 It accepts any colour value, translucency included. Leave it unset and the card surface
 derives from `card-background-color` exactly as before.
 
-!!! note "Why the other `evcc-` names don't work"
+!!! note "Why most other `evcc-` names don't work"
 
-    The cards' internal tokens are all named `--evcc-…`, and setting one of those in a
+    Most of the cards' internal tokens are named `--evcc-…`, and setting one of those in a
     theme has no effect — `evcc-surface-card`, for instance, is ignored. That is not an
     oversight, it is the cost of the cards following your theme at all: those names are
-    *computed* from the eight variables above, and in CSS a value an element computes for
-    itself always beats one it inherits. So they are outputs of the theming system, not
-    inputs to it. The eight variables are the inputs, plus the one override above.
+    *computed* from the variables above, and in CSS a value an element computes for itself
+    always beats one it inherits. So they are outputs of the theming system, not inputs
+    to it.
 
-    If you want a specific palette rather than matching your dashboard, use the Vacuum
-    Agent theme editor and tick **Use the Vacuum Agent theme** in the card's own editor
-    (see below). That is applied directly to the card and wins over both.
+    **The card frame tokens in the next section are the exception**, and they are
+    deliberately the exception: they are computed from nothing, so there is no computed
+    value to beat an inherited one, and a theme can set them.
+
+### Styling the card frame from YAML
+
+The theme editor is the easy path and needs no YAML. But everything it sets for the card
+frame can be set from `themes.yaml` too, which is the normal Home Assistant way and is
+there for people who build their dashboards that way.
+
+These are **inputs**, not computed values — set one and the card follows:
+
+```yaml
+my-theme:
+  # applies to all three cards
+  evcc-card-frame-background: "#1b1f24"
+  evcc-card-frame-border-color: "rgba(255,255,255,0.14)"
+  evcc-card-frame-border-width: "2px"
+  evcc-card-frame-shadow: "0 2px 8px rgba(0,0,0,0.4)"
+
+  # and any one card on its own — these win over the shared names above
+  evcc-card-room-frame-background: "#232830"
+  evcc-card-dashboard-frame-border-width: "0px"
+  evcc-card-profile-frame-shadow: "none"
+```
+
+Swap `room`, `dashboard` or `profile` into `evcc-card-<card>-<property>` for the per-card
+form. Every control in the theme editor's **Dashboard Cards** group has a name of this
+shape; the group's own labels tell you which property each one is.
+
+**Which wins, if more than one is set:**
+
+1. **`theme_vars` on the card itself** — see the next section. Set directly on one card, so
+   it beats everything else, including the Vacuum Agent theme.
+2. **The Vacuum Agent theme**, on a card with *Use the Vacuum Agent theme* ticked.
+3. **The per-card name**, `evcc-card-room-…` — beats the shared name.
+4. **The shared name**, `evcc-card-frame-…` — beats the Home Assistant variable.
+5. **The Home Assistant variable**, `ha-card-background` and friends from the table above.
+6. The shipped default.
+
+So a YAML-only setup gets rungs 3–6 and behaves exactly as you would expect; ticking the
+Vacuum Agent theme on a card hands that card to the theme editor — unless that card also
+carries `theme_vars`, which stays on top either way.
+
+### Styling one card on its own — `theme_vars`
+
+The names above are theme-wide: set `evcc-card-room-frame-background` and *every* room card
+moves. To style **one card** — two room cards side by side in different colours — put the
+values on that card's own config:
+
+```yaml
+type: custom:eufy-room-card
+vacuum_entity_id: vacuum.alfred
+room_id: 3
+theme_vars:
+  evcc-card-frame-background: "#232830"
+  evcc-card-frame-border-color: "#3d4450"
+  evcc-accent: "#e0a060"
+```
+
+**Any token the theme editor exposes works here** — not just the card frame. The names are
+the same ones the editor shows, with or without the leading `--`, so
+`evcc-accent` and `--evcc-accent` both work.
+
+A few things worth knowing:
+
+- It beats the Vacuum Agent theme on that card. The theme still supplies everything
+  `theme_vars` does not name, so this overrides a theme rather than replacing it.
+- Delete a key and the card goes back to whatever it would otherwise have shown — no
+  reload needed.
+- Only `--evcc-…` names are accepted. Anything else is ignored, so this cannot be used to
+  set arbitrary CSS on the card.
+- On the Dashboard Mode card it reaches the embedded map too, so the map follows.
+
+!!! tip "You don't have to choose"
+
+    The theme editor and `theme_vars` work together: build the palette in the editor, tick
+    *Use the Vacuum Agent theme* on the cards, and use `theme_vars` only where one card
+    needs to differ.
 
 ### Or carry the Vacuum Agent theme across
 

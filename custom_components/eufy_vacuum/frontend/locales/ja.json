@@ -239,7 +239,6 @@
       "evcc_text_secondary": "テキスト（副）",
       "evcc_text_strong": "テキスト（強）",
       "evcc_bg_input": "入力欄の背景",
-      "evcc_card_bg": "カード背景",
       "evcc_card_frame_border_width": "枠線の太さ",
       "evcc_card_frame_shadow": "枠線のシャドウ",
       "evcc_card_action_glow": "アクションのグロー",
@@ -683,7 +682,16 @@
       "evcc_animal_mittens_eye_warn": "目 — 警告",
       "evcc_animal_mittens_eye_low": "目 — 低",
       "evcc_animal_mittens_eye_charging": "目 — 充電中",
-      "evcc_animal_mittens_eye": "目のベース"
+      "evcc_animal_mittens_eye": "目のベース",
+      "evcc_card_frame_background": "枠の背景",
+      "evcc_card_room_frame_background": "枠の背景",
+      "evcc_card_dashboard_frame_background": "枠の背景",
+      "evcc_card_profile_frame_background": "枠の背景",
+      "evcc_card_frame_border_color": "枠線の色",
+      "evcc_card_room_frame_border_color": "枠線の色",
+      "evcc_card_dashboard_frame_border_color": "枠線の色",
+      "evcc_card_profile_frame_border_color": "枠線の色",
+      "evcc_map_background": "マップの背景"
     },
     "theme_group": {
       "app_shell_typography": "アプリシェルとタイポグラフィ",

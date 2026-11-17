@@ -239,7 +239,6 @@
       "evcc_text_secondary": "보조 텍스트",
       "evcc_text_strong": "진한 텍스트",
       "evcc_bg_input": "입력 배경",
-      "evcc_card_bg": "카드 배경",
       "evcc_card_frame_border_width": "테두리 두께",
       "evcc_card_frame_shadow": "테두리 그림자",
       "evcc_card_action_glow": "액션 광채",
@@ -683,7 +682,16 @@
       "evcc_animal_mittens_eye_warn": "눈 — 경고",
       "evcc_animal_mittens_eye_low": "눈 — 낮음",
       "evcc_animal_mittens_eye_charging": "눈 — 충전 중",
-      "evcc_animal_mittens_eye": "눈 기본"
+      "evcc_animal_mittens_eye": "눈 기본",
+      "evcc_card_frame_background": "테두리 배경",
+      "evcc_card_room_frame_background": "테두리 배경",
+      "evcc_card_dashboard_frame_background": "테두리 배경",
+      "evcc_card_profile_frame_background": "테두리 배경",
+      "evcc_card_frame_border_color": "테두리 색상",
+      "evcc_card_room_frame_border_color": "테두리 색상",
+      "evcc_card_dashboard_frame_border_color": "테두리 색상",
+      "evcc_card_profile_frame_border_color": "테두리 색상",
+      "evcc_map_background": "지도 배경"
     },
     "theme_group": {
       "app_shell_typography": "앱 셸 및 타이포그래피",

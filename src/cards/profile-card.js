@@ -20,9 +20,12 @@ import { translate, resolveLang, ensureLocalesLoaded, applyDir } from "../i18n/i
 // define the tokens here rather than re-inking each fallback.
 import { foundationTokens } from "../styles/foundation.js";
 import { applyVaThemeToCard } from "../styles/card-theme.js";
+// See room-card.js: --evcc-animal-* are bare hsl() components, not colours.
+import { animalHslComponents } from "../styles/apply-tokens.js";
 import {
   esc, callResponse, defineCard, registerCard, getStoredLang, setStoredLang,
-  renderThemePanelLink, wireThemePanelLink, THEME_PANEL_LINK_CSS, renderLangControl, wireLangControl, LANG_CSS, vocab, roomSwitchesFor, GRID_PROFILE_CARD } from "./_shared.js";
+  renderThemePanelLink, wireThemePanelLink, THEME_PANEL_LINK_CSS, renderLangControl, wireLangControl, LANG_CSS, vocab, roomSwitchesFor, GRID_PROFILE_CARD,
+  applyCardThemeVars } from "./_shared.js";
 import { dashboardSuggestion } from "./card-suggestions.js";
 import { renderStepsManifest } from "../state/steps-manifest.js";
 
@@ -48,16 +51,21 @@ const CARD_CSS = `
   }
   /* REPLICA RNA0TM68 -- the card FRAME. Twins: src/room-card.js (as --ha-card-*,
      because that one frames with ha-card) and src/cards/dashboard-card.js (.card).
-     Frame border-width and shadow are the two properties that were hardcoded here
-     while background, radius and border-colour were already themeable; see
+     Frame border-width and shadow came first; background and border-colour followed
+     (2026-11-16) once the HA rung could live in foundation rather than here. Radius is
+     still the odd one out -- it has no per-card token, only --evcc-radius-card. See
      src/theme-tokens/cards.js. The var() fallbacks ARE the shipped defaults -- the
      tokens are deliberately undeclared anywhere, so a Home Assistant theme setting
      them in YAML inherits in and wins, exactly as --evcc-surface-card-override does. */
   .evcc-pcard {
-    background: var(--surface);
+    background: var(--evcc-card-profile-frame-background, var(--evcc-card-frame-background, var(--surface)));
     /* ISSUE #83 second pass -- VA token, then an HA theme's value, then our literal.
-       Plain div, no --ha-card-* declared here, so no cycle. */
-    border: var(--evcc-card-profile-frame-border-width, var(--evcc-card-frame-border-width, var(--ha-card-border-width, 1px))) solid var(--border);
+       Plain div, no --ha-card-* declared here, so no cycle.
+       Background and border-colour end at the ALIAS rather than at an --ha-card-* name:
+       their HA rung lives inside --evcc-surface-card / --evcc-border-default themselves
+       (foundation.js, anchor RNT9NEY2), so --surface and --border already answer
+       VA-then-HA. A rung here would let HA beat the VA theme. */
+    border: var(--evcc-card-profile-frame-border-width, var(--evcc-card-frame-border-width, var(--ha-card-border-width, 1px))) solid var(--evcc-card-profile-frame-border-color, var(--evcc-card-frame-border-color, var(--border)));
     border-radius: var(--radius);
     box-shadow: var(--evcc-card-profile-frame-shadow, var(--evcc-card-frame-shadow, var(--ha-card-box-shadow, none)));
     padding: 16px;
@@ -244,6 +252,17 @@ class VacuumAgentProfileCard extends HTMLElement {
       this._hass,
       this._vacuumId(),
       this._config?.va_theme === true,
+    );
+
+    /* HIS RULING 2026-11-16: "YAML can be the winner its set directly after all".
+       `theme_vars` on this card's own config is the TOP rung -- above the Vacuum Agent
+       theme -- because it is set on one instance rather than on every card a theme
+       touches. AFTER the writer above and on EVERY render: applyDynamicTheme
+       removeProperty()s every registry token the theme does not carry and both write
+       inline on this same host, so running it first would have the theme erase it on the
+       same tick. The previous set is tracked so deleting a key stops it painting. */
+    this._appliedThemeVars = applyCardThemeVars(
+      this, this._config, this._appliedThemeVars, animalHslComponents,
     );
 
     const style = `<style>${foundationTokens}${CARD_CSS}</style>`;

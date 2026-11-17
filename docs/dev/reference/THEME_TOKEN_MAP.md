@@ -6,7 +6,7 @@
 
 > Generated reference — part of the [Theme System](../frontend/theme-system.md) docs. Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).
 
-The themeable control-surface tokens exposed in the theme editor: **452 tokens** across **30 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; **Default** is the value the card ships (the reverse lookup: scan a group for the colour you need instead of inventing one); bounded scalars list their slider range.
+The themeable control-surface tokens exposed in the theme editor: **460 tokens** across **30 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; **Default** is the value the card ships (the reverse lookup: scan a group for the colour you need instead of inventing one); bounded scalars list their slider range.
 
 The 5 companion sub-groups share one identical 14-token shape — only **Cat** is listed in full; Dog, Fox, Raccoon, Parrot, Snake repeat it with their own `-<animal>-` key segment.
 
@@ -27,12 +27,11 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-text-secondary` | Text Secondary | color | `var(--secondary-text-color, rgba(240,242,245,0.72))` |  |
 | `--evcc-text-strong` | Text Strong | color | `var(--primary-text-color, #f0f2f5)` |  |
 
-## Cards & Surfaces  ·  19
+## Cards & Surfaces  ·  18
 
 | Token | Controls | Type | Default | Range |
 |---|---|---|---|---|
 | `--evcc-bg-input` | BG Input | color | `var(--evcc-surface-input)` |  |
-| `--evcc-card-bg` | Card BG | color | `var(--evcc-surface-card)` |  |
 | `--evcc-card-gap` | Card Gap | size | — |  |
 | `--evcc-card-min-height` | Card Min Height | size | — |  |
 | `--evcc-card-padding` | Card Padding | size | — |  |
@@ -40,7 +39,7 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-surface-action` | Surface Action | color | `color-mix(in srgb, var(--evcc-overlay-ink) 10%, transparent)` |  |
 | `--evcc-surface-action-hover` | Surface Action Hover | color | `color-mix(in srgb, var(--evcc-overlay-ink) 18%, transparent)` |  |
 | `--evcc-surface-base` | Surface Base | color | `var(--card-background-color, #1c2127)` |  |
-| `--evcc-surface-card` | Surface Card | color | `var(--evcc-surface-card-override, var(--evcc-surface-base))` |  |
+| `--evcc-surface-card` | Surface Card | color | `var(--evcc-surface-card-override, var(--ha-card-background, var(--evcc-surface-base)))` |  |
 | `--evcc-surface-chip` | Surface Chip | color | `color-mix(in srgb, var(--evcc-overlay-ink) 9%, transparent)` |  |
 | `--evcc-surface-input` | Surface Input | color | `color-mix(in srgb, var(--evcc-overlay-ink) 6%, transparent)` |  |
 | `--evcc-surface-overlay` | Surface Overlay | color | `rgba(0,0,0,0.4)` |  |
@@ -55,7 +54,7 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 
 | Token | Controls | Type | Default | Range |
 |---|---|---|---|---|
-| `--evcc-border-default` | Border Default | color | `color-mix(in srgb, var(--evcc-overlay-ink) 10%, transparent)` |  |
+| `--evcc-border-default` | Border Default | color | `var(--ha-card-border-color, color-mix(in srgb, var(--evcc-overlay-ink) 10%, transparent))` |  |
 | `--evcc-border-strong` | Border Strong | color | `color-mix(in srgb, var(--evcc-overlay-ink) 18%, transparent)` |  |
 | `--evcc-border-subtle` | Border Subtle | color | `color-mix(in srgb, var(--evcc-overlay-ink) 6%, transparent)` |  |
 | `--evcc-border-success` | Border Success | color | `rgba(76,175,110,0.35)` |  |
@@ -117,10 +116,12 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-room-grid-gap` | Room Grid Gap | size | `var(--evcc-grid-gap)` |  |
 | `--evcc-room-grid-min` | Room Grid Min | size | `240px` |  |
 
-## Dashboard Cards  ·  8
+## Dashboard Cards  ·  10
 
 | Token | Controls | Type | Default | Range |
 |---|---|---|---|---|
+| `--evcc-card-frame-background` | Frame Background | color | — |  |
+| `--evcc-card-frame-border-color` | Frame Border Colour | color | — |  |
 | `--evcc-card-frame-border-width` | Frame Border Width | size | — | 0–8 step 0.5 |
 | `--evcc-card-frame-shadow` | Frame Shadow | shadow | — |  |
 | `--evcc-card-header-padding` | Header Padding | lengths | — |  |
@@ -130,10 +131,12 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-card-action-glow` | Action Glow | shadow | — |  |
 | `--evcc-card-font-scale` | Font Scale | number | — | 0.5–2 step 0.05 |
 
-## Dashboard Cards — Room  ·  6
+## Dashboard Cards — Room  ·  8
 
 | Token | Controls | Type | Default | Range |
 |---|---|---|---|---|
+| `--evcc-card-room-frame-background` | Frame Background | color | — |  |
+| `--evcc-card-room-frame-border-color` | Frame Border Colour | color | — |  |
 | `--evcc-card-room-frame-border-width` | Frame Border Width | size | — | 0–8 step 0.5 |
 | `--evcc-card-room-frame-shadow` | Frame Shadow | shadow | — |  |
 | `--evcc-card-room-action-glow` | Action Glow | shadow | — |  |
@@ -141,10 +144,12 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-card-room-header-padding` | Header Padding | lengths | — |  |
 | `--evcc-card-room-field-gap` | Field Gap | size | — | 0–16 step 0.5 |
 
-## Dashboard Cards — Dashboard Mode  ·  8
+## Dashboard Cards — Dashboard Mode  ·  10
 
 | Token | Controls | Type | Default | Range |
 |---|---|---|---|---|
+| `--evcc-card-dashboard-frame-background` | Frame Background | color | — |  |
+| `--evcc-card-dashboard-frame-border-color` | Frame Border Colour | color | — |  |
 | `--evcc-card-dashboard-frame-border-width` | Frame Border Width | size | — | 0–8 step 0.5 |
 | `--evcc-card-dashboard-frame-shadow` | Frame Shadow | shadow | — |  |
 | `--evcc-card-dashboard-action-glow` | Action Glow | shadow | — |  |
@@ -154,19 +159,22 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-card-dashboard-row-padding` | Row Padding | lengths | — |  |
 | `--evcc-card-dashboard-section-padding` | Section Padding | lengths | — |  |
 
-## Dashboard Cards — Profile  ·  4
+## Dashboard Cards — Profile  ·  6
 
 | Token | Controls | Type | Default | Range |
 |---|---|---|---|---|
+| `--evcc-card-profile-frame-background` | Frame Background | color | — |  |
+| `--evcc-card-profile-frame-border-color` | Frame Border Colour | color | — |  |
 | `--evcc-card-profile-frame-border-width` | Frame Border Width | size | — | 0–8 step 0.5 |
 | `--evcc-card-profile-frame-shadow` | Frame Shadow | shadow | — |  |
 | `--evcc-card-profile-action-glow` | Action Glow | shadow | — |  |
 | `--evcc-card-profile-font-scale` | Font Scale | number | — | 0.5–2 step 0.05 |
 
-## Map  ·  34
+## Map  ·  35
 
 | Token | Controls | Type | Default | Range |
 |---|---|---|---|---|
+| `--evcc-map-background` | Map Background | color | — |  |
 | `--evcc-map-label-bg` | Map Label Background | color | — |  |
 | `--evcc-map-label-text` | Map Label Text | color | — |  |
 | `--evcc-map-label-text-selected` | Map Label Text (Selected) | color | — |  |

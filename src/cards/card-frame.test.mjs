@@ -67,6 +67,7 @@ function codeOnly(t) {
 const ROOM = codeOnly(read("src", "room-card.js"));
 const DASH = codeOnly(read("src", "cards", "dashboard-card.js"));
 const PROF = codeOnly(read("src", "cards", "profile-card.js"));
+const FOUNDATION = codeOnly(read("src", "styles", "foundation.js"));
 
 /** The three frame copies of RNA0TM68. Named so a failure says which one drifted. */
 const FRAMES = [
@@ -324,14 +325,21 @@ test("[CFR-8] each --ha-card-* frame name is declared EXACTLY ONCE, at the apply
   // ablation that re-declared the name on :host reddened NOTHING. That is the same trap
   // [CFR-1] records being caught by, in this same file, which is why both are now
   // file-wide: a count cannot be fooled by which block it found.
-  for (const name of ["--ha-card-border-width", "--ha-card-box-shadow"]) {
-    const decls = [...ROOM.matchAll(new RegExp(`${name}\s*:\s*([^;]+);`, "g"))]
+  // String.raw, NOT a plain template literal: `\s` inside one is an unrecognised
+  // escape and collapses to a literal "s", so this pattern used to compile as
+  // `--ha-card-border-widths*:s*([^;]+);`. It matched anyway -- `s*` takes zero and
+  // `[^;]+` eats the space -- but a declaration written `--ha-card-background : red;`
+  // would have been MISSED, leaving the count at 1 and this guard green on the exact
+  // defect it exists to catch. Pinned by [CFR-13].
+  for (const name of ["--ha-card-border-width", "--ha-card-box-shadow",
+                      "--ha-card-background", "--ha-card-border-color"]) {
+    const decls = [...ROOM.matchAll(new RegExp(String.raw`${name}\s*:\s*([^;]+);`, "g"))]
       .map((m) => m[1].trim().replace(/\s+/g, " "));
     assert.equal(decls.length, 1,
       `${name} must be declared exactly once and only at the apply site. Found ` +
       `${decls.length}: ${JSON.stringify(decls)}. A second declaration on :host shadows ` +
       "the value an HA theme set, before the card can read it — the #83 defect.");
-    assert.match(decls[0], /^var\(--frame-(border-width|shadow)\)$/,
+    assert.match(decls[0], /^var\(--frame-(border-width|shadow|background|border-color)\)$/,
       `${name} must be declared from the :host intermediate, not straight from the VA ` +
       `token — reading the token here loses the HA middle rung. Got: ${decls[0]}`);
   }
@@ -346,6 +354,8 @@ test("[CFR-9] it declares them on the ha-card ELEMENT, from the :host intermedia
   assert.ok(rule, "could not find room-card's ha-card element rule");
   assert.match(rule[0], /--ha-card-border-width:\s*var\(--frame-border-width\)/);
   assert.match(rule[0], /--ha-card-box-shadow:\s*var\(--frame-shadow\)/);
+  assert.match(rule[0], /--ha-card-background:\s*var\(--frame-background\)/);
+  assert.match(rule[0], /--ha-card-border-color:\s*var\(--frame-border-color\)/);
 
   // And the intermediates must resolve in the full order: this card's own token, then
   // the one shared by all three, then whatever an HA theme set, then our literal. The
@@ -358,6 +368,83 @@ test("[CFR-9] it declares them on the ha-card ELEMENT, from the :host intermedia
   assert.match(ROOM,
     /--frame-shadow:\s*var\(--evcc-card-room-frame-shadow,\s*var\(--evcc-card-frame-shadow,\s*var\(--ha-card-box-shadow,\s*none\)\)\)/,
     "shadow must be per-card -> shared -> HA theme -> none, in that order");
+});
+
+test("[CFR-11] the HA rung for background and border colour lives in FOUNDATION only", () => {
+  // THE RED INPUT, and it is the tempting one: write the background chain the way the
+  // border-width chain is written, i.e. per-card -> shared -> var(--ha-card-background).
+  // That looks symmetrical and is WRONG here, because --evcc-surface-card and
+  // --evcc-border-default are declared unconditionally: a rung BEHIND them is dead, and a
+  // rung AHEAD of them inverts the precedence so an HA theme beats the VA theme. Either
+  // way the four-path table stops holding and nothing else in this file notices.
+  //
+  // The rung belongs inside the VA token's own declaration, which is how
+  // --ha-card-border-radius has always worked (foundation.js). There it computes ONLY
+  // when no inline VA value exists, which IS "VA, else HA, else the literal".
+  assert.match(FOUNDATION,
+    /--evcc-surface-card:\s*var\(--evcc-surface-card-override,\s*var\(--ha-card-background,\s*var\(--evcc-surface-base\)\)\)/,
+    "--evcc-surface-card must read --ha-card-background between its override slot and " +
+    "--evcc-surface-base, so an HA theme reaches the frame without beating a VA one");
+  assert.match(FOUNDATION,
+    /--evcc-border-default:\s*var\(--ha-card-border-color,\s*color-mix\(/,
+    "--evcc-border-default must read --ha-card-border-color ahead of its derivation");
+
+  // And NO card may name either one except at the room card's single apply site, which
+  // [CFR-8] already counts. codeOnly() has stripped comments, so prose does not count.
+  for (const [name, src] of FRAMES) {
+    for (const ha of ["--ha-card-background", "--ha-card-border-color"]) {
+      const uses = (src.match(new RegExp(ha.replace(/-/g, "\\-"), "g")) || []).length;
+      const allowed = name === "room-card.js" ? 1 : 0;
+      assert.equal(uses, allowed,
+        `${name}: ${ha} may appear ${allowed} time(s) here. Found ${uses}. A rung in a ` +
+        "card chain either dies behind an always-declared token or inverts VA/HA — " +
+        "the HA rung belongs in foundation.js (anchor RNT9NEY2).");
+    }
+  }
+});
+
+test("[CFR-12] all three cards chain frame background and border colour per-card -> shared -> alias", () => {
+  // THE RED INPUT: the same one [CFR-10] guards against for the other pair — repairing
+  // the room card and leaving the two div-framed cards reading --surface/--border flat,
+  // so their new editor controls would appear and move nothing.
+  const want = [
+    [/var\(--evcc-card-(room|dashboard|profile)-frame-background,\s*var\(--evcc-card-frame-background,\s*var\(--surface\)\)\)/,
+     "frame background", "--surface"],
+    [/var\(--evcc-card-(room|dashboard|profile)-frame-border-color,\s*var\(--evcc-card-frame-border-color,\s*var\(--border\)\)\)/,
+     "frame border colour", "--border"],
+  ];
+  for (const [name, src] of FRAMES) {
+    for (const [re, what, tail] of want) {
+      assert.match(src, re,
+        `${name}: ${what} must chain per-card -> shared -> var(${tail}). It ends at the ` +
+        "ALIAS deliberately: the alias already resolves VA-then-HA-then-literal because " +
+        "the HA rung lives inside --evcc-surface-card / --evcc-border-default themselves.");
+    }
+  }
+});
+
+test("[CFR-13] CFR-8 builds its declaration regex with String.raw, not a template literal", () => {
+  // THE RED INPUT: write the pattern back as a plain template literal. `\s` is not a
+  // recognised escape there, so it collapses to a literal "s" and the pattern silently
+  // becomes `--ha-card-...s*:s*([^;]+);`. That still matches the declarations we write
+  // today, so [CFR-8] stays GREEN — which is the whole problem: it would no longer catch
+  // a second declaration written with a space before the colon.
+  const src = read("src", "cards", "card-frame.test.mjs");
+  assert.match(src, /String\.raw`\$\{name\}/,
+    "CFR-8's declaration pattern must be built with String.raw — a plain template " +
+    "literal eats the backslash in \\s and the guard stops being able to bite.");
+
+  // Prove the collapse rather than asserting it: this is the pattern the old form built.
+  // eslint-disable-next-line no-useless-escape
+  const collapsed = `--ha-card-background\s*:\s*([^;]+);`;
+  assert.equal(collapsed, "--ha-card-backgrounds*:s*([^;]+);",
+    "if this ever stops being true, JS changed and the String.raw requirement can be " +
+    "revisited");
+  assert.equal(new RegExp(collapsed).test("--ha-card-background : red;"), false,
+    "the collapsed pattern misses a space before the colon — the hole [CFR-13] closes");
+  assert.equal(new RegExp(String.raw`--ha-card-background\s*:\s*([^;]+);`)
+    .test("--ha-card-background : red;"), true,
+    "the String.raw pattern catches it");
 });
 
 test("[CFR-10] all three cards take the HA theme value as the MIDDLE fallback", () => {

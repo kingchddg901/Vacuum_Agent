@@ -61,13 +61,27 @@ test("[SCO-1] the declaration reads the override first, then derives", () => {
   // THE RED INPUT: reverting to `--evcc-surface-card: var(--evcc-surface-base);`, which
   // is what shipped through 2.6.1 and is what makes an HA theme's value unreachable.
   // Also red on a typo in the override name, which is the failure no other gate can see.
-  assert.match(
-    codeOnly(FOUNDATION),
-    /--evcc-surface-card:\s*var\(\s*--evcc-surface-card-override\s*,\s*var\(\s*--evcc-surface-base\s*\)\s*\)\s*;/,
-    "--evcc-surface-card must be declared as " +
-    "var(--evcc-surface-card-override, var(--evcc-surface-base)): the override first so " +
-    "an inherited theme value wins, the derivation second so absent one nothing changes",
-  );
+  // The contract is the ORDER, not the exact text. A third rung landed between the two in
+  // 2.7.1 -- var(--ha-card-background, ...) -- so that a Home Assistant theme reaches the
+  // card frame; see RNT9NEY2 in docs/dev/00c-replicas.md. The override must still come
+  // FIRST (an inherited theme value wins) and the derivation LAST (absent one, nothing
+  // changes); anything in between is a further fallback and cannot reorder those two.
+  const decl = codeOnly(FOUNDATION).match(/--evcc-surface-card:\s*([^;]+);/);
+  assert.ok(decl, "--evcc-surface-card must still be declared in foundation.js");
+  const body = decl[1].replace(/\s+/g, " ").trim();
+
+  assert.match(body, /^var\(\s*--evcc-surface-card-override\s*,/,
+    "the override must be the FIRST rung, or an inherited theme value stops winning. " +
+    `Got: ${body}`);
+  assert.match(body, /var\(\s*--evcc-surface-base\s*\)\s*\)*\s*$/,
+    "--evcc-surface-base must be the LAST rung, or the shipped derivation stops being " +
+    `the final fallback and absent-everything changes. Got: ${body}`);
+
+  // THE RED INPUT this replaces: reverting to `var(--evcc-surface-base)` alone, which is
+  // what shipped through 2.6.1 and makes an HA theme's value unreachable. Still red, and
+  // still red on a typo in the override name -- the failure no other gate can see.
+  assert.ok(body.includes("--evcc-surface-card-override"),
+    "the override name must appear exactly; a typo silently disables the whole mechanism");
 });
 
 test("[SCO-2] the override is declared NOWHERE — the mechanism is its absence", () => {

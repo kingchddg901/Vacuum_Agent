@@ -91,7 +91,12 @@ export const mapStyles = `
     min-height:    240px;
     overflow:      hidden;
     border-radius: var(--evcc-radius-card, 12px);
-    background:    var(--evcc-surface-panel, #1c2127);
+    /* THE MAP FLOOR. Non-room pixels are transparent (see the render-canvas note below),
+       so this colour is what reads as floor -- it is not chrome. --evcc-map-background is
+       deliberately declared NOWHERE, so an unset theme falls straight through to
+       --evcc-surface-panel and nothing moves; setting it detaches the floor from the
+       panel surface that also paints base-station blocks, selects and hover states. */
+    background:    var(--evcc-map-background, var(--evcc-surface-panel, #1c2127));
     isolation:     isolate;
   }
 

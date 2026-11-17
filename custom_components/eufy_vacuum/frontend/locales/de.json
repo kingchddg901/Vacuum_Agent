@@ -2076,7 +2076,6 @@
       "evcc_text_secondary": "Text sekundär",
       "evcc_text_strong": "Text kräftig",
       "evcc_bg_input": "Eingabe-Hintergrund",
-      "evcc_card_bg": "Karten-Hintergrund",
       "evcc_card_frame_border_width": "Rahmenbreite",
       "evcc_card_frame_shadow": "Rahmen-Schatten",
       "evcc_card_action_glow": "Aktions-Leuchten",
@@ -2520,7 +2519,16 @@
       "evcc_floor_carpet_high_weave_opacity": "Teppich hoch Deckkraft Gewebeebene",
       "evcc_floor_granite_light_aggregate": "Granit Körnungsfarbe",
       "evcc_floor_granite_light_base_opacity": "Granit Deckkraft Grundebene",
-      "evcc_floor_granite_light_aggregate_opacity": "Granit Deckkraft Körnungsebene"
+      "evcc_floor_granite_light_aggregate_opacity": "Granit Deckkraft Körnungsebene",
+      "evcc_card_frame_background": "Rahmen-Hintergrund",
+      "evcc_card_room_frame_background": "Rahmen-Hintergrund",
+      "evcc_card_dashboard_frame_background": "Rahmen-Hintergrund",
+      "evcc_card_profile_frame_background": "Rahmen-Hintergrund",
+      "evcc_card_frame_border_color": "Rahmenfarbe",
+      "evcc_card_room_frame_border_color": "Rahmenfarbe",
+      "evcc_card_dashboard_frame_border_color": "Rahmenfarbe",
+      "evcc_card_profile_frame_border_color": "Rahmenfarbe",
+      "evcc_map_background": "Karten-Hintergrund"
     },
     "theme_group": {
       "app_shell_typography": "App-Rahmen & Typografie",

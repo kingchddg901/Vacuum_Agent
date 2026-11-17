@@ -239,7 +239,6 @@
       "evcc_text_secondary": "טקסט משני",
       "evcc_text_strong": "טקסט מודגש",
       "evcc_bg_input": "רקע קלט",
-      "evcc_card_bg": "רקע כרטיס",
       "evcc_card_frame_border_width": "עובי מסגרת",
       "evcc_card_frame_shadow": "צל מסגרת",
       "evcc_card_action_glow": "זוהר פעולה",
@@ -683,7 +682,16 @@
       "evcc_space_md": "מרווח בינוני",
       "evcc_space_sm": "מרווח קטן",
       "evcc_space_xs": "מרווח זעיר",
-      "evcc_transition_normal": "מעבר רגיל"
+      "evcc_transition_normal": "מעבר רגיל",
+      "evcc_card_frame_background": "רקע מסגרת",
+      "evcc_card_room_frame_background": "רקע מסגרת",
+      "evcc_card_dashboard_frame_background": "רקע מסגרת",
+      "evcc_card_profile_frame_background": "רקע מסגרת",
+      "evcc_card_frame_border_color": "צבע מסגרת",
+      "evcc_card_room_frame_border_color": "צבע מסגרת",
+      "evcc_card_dashboard_frame_border_color": "צבע מסגרת",
+      "evcc_card_profile_frame_border_color": "צבע מסגרת",
+      "evcc_map_background": "רקע מפה"
     },
     "theme_group": {
       "app_shell_typography": "מעטפת אפליקציה וטיפוגרפיה",

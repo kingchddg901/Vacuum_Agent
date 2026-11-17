@@ -239,7 +239,6 @@
       "evcc_text_secondary": "Tekst drugorzędny",
       "evcc_text_strong": "Tekst mocny",
       "evcc_bg_input": "Tło pola",
-      "evcc_card_bg": "Tło karty",
       "evcc_card_frame_border_width": "Szerokość obramowania ramki",
       "evcc_card_frame_shadow": "Cień ramki",
       "evcc_card_action_glow": "Poświata akcji",
@@ -683,7 +682,16 @@
       "evcc_animal_mittens_eye_warn": "Oko — ostrzeżenie",
       "evcc_animal_mittens_eye_low": "Oko — niski",
       "evcc_animal_mittens_eye_charging": "Oko — ładowanie",
-      "evcc_animal_mittens_eye": "Podstawa oka"
+      "evcc_animal_mittens_eye": "Podstawa oka",
+      "evcc_card_frame_background": "Tło ramki",
+      "evcc_card_room_frame_background": "Tło ramki",
+      "evcc_card_dashboard_frame_background": "Tło ramki",
+      "evcc_card_profile_frame_background": "Tło ramki",
+      "evcc_card_frame_border_color": "Kolor obramowania ramki",
+      "evcc_card_room_frame_border_color": "Kolor obramowania ramki",
+      "evcc_card_dashboard_frame_border_color": "Kolor obramowania ramki",
+      "evcc_card_profile_frame_border_color": "Kolor obramowania ramki",
+      "evcc_map_background": "Tło mapy"
     },
     "theme_group": {
       "app_shell_typography": "Powłoka aplikacji i typografia",

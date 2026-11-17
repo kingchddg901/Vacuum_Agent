@@ -29,7 +29,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -44,15 +44,21 @@ const SRC = {
   profile: readFileSync(join(REPO, "src", "cards", "profile-card.js"), "utf8"),
 };
 
-/** Which of the eight each card reads — stated INDEPENDENTLY of cards.js on purpose.
+/** Which of the ten each card reads — stated INDEPENDENTLY of cards.js on purpose.
  *  Importing READS from the module under test would make [PCT-1] compare a thing to
- *  itself and pass whatever either side said. This copy is the measurement. */
+ *  itself and pass whatever either side said. This copy is the measurement.
+ *  frame-background and frame-border-color were added by reading the three card files:
+ *  room-card.js resolves them on :host and applies them on the ha-card element, while
+ *  dashboard-card.js (.card) and profile-card.js (.evcc-pcard) spell them as ordinary
+ *  properties on a plain div. */
 const EXPECTED = {
-  room: ["frame-border-width", "frame-shadow", "action-glow", "font-scale",
-         "header-padding", "field-gap"],
-  dashboard: ["frame-border-width", "frame-shadow", "action-glow", "font-scale",
-              "header-padding", "field-gap", "row-padding", "section-padding"],
-  profile: ["frame-border-width", "frame-shadow", "action-glow", "font-scale"],
+  room: ["frame-background", "frame-border-color", "frame-border-width", "frame-shadow",
+         "action-glow", "font-scale", "header-padding", "field-gap"],
+  dashboard: ["frame-background", "frame-border-color", "frame-border-width", "frame-shadow",
+              "action-glow", "font-scale", "header-padding", "field-gap",
+              "row-padding", "section-padding"],
+  profile: ["frame-background", "frame-border-color", "frame-border-width", "frame-shadow",
+            "action-glow", "font-scale"],
 };
 
 const split = (key) => {
@@ -64,7 +70,7 @@ const split = (key) => {
 };
 
 test("[PCT-1] PER_CARD_KEYS is exactly what the cards read — no missing, no extra", () => {
-  // THE RED INPUT: add a ninth thing to one card's CSS and forget its key, or leave a
+  // THE RED INPUT: add an eleventh thing to one card's CSS and forget its key, or leave a
   // key behind after dropping a control. Either way the two halves disagree and nothing
   // else notices: a missing key is a control that never appears, an extra one is a
   // control that moves nothing.
@@ -72,7 +78,7 @@ test("[PCT-1] PER_CARD_KEYS is exactly what the cards read — no missing, no ex
     .flatMap(([id, things]) => things.map((t) => `--evcc-card-${id}-${t}`))
     .sort();
   assert.deepEqual([...PER_CARD_KEYS].sort(), want);
-  assert.equal(PER_CARD_KEYS.length, 18, "6 room + 8 dashboard + 4 profile");
+  assert.equal(PER_CARD_KEYS.length, 24, "8 room + 10 dashboard + 6 profile");
   assert.equal(new Set(PER_CARD_KEYS).size, PER_CARD_KEYS.length, "no duplicate keys");
 });
 
@@ -120,4 +126,54 @@ test("[PCT-4] the per-card rung is OUTSIDE the shared one", () => {
       `wins and the shared one still carries every card that has no override. Got: ` +
       JSON.stringify(after.slice(0, 60)));
   }
+});
+
+test("[PCT-5] no card token is DECLARED anywhere — that absence is the YAML path", () => {
+  // THE RED INPUT: declare any one of the 34 in a :host block, with any value at all.
+  // A declaration in the card's own tree beats a value inherited from the document, so
+  // that token stops responding to a themes.yaml entry while the theme editor keeps
+  // working perfectly — and the user's report would be "my YAML does nothing", which
+  // looks exactly like a mistyped key.
+  //
+  // MEASURED 2026-11-16 against the built bundle, all three cards: a token set on <html>
+  // reaches the frame; the per-card key beats the shared key; a VA theme (written inline
+  // on the host) beats both. That is his stated precedence, and it holds only while these
+  // stay undeclared. Same mechanism-is-the-absence shape as [SCO-2].
+  const NAMES = [...PER_CARD_KEYS, ...DASHBOARD_CARD_TOKENS.map((t) => t.key)];
+  assert.ok(NAMES.length >= 34, `expected at least 34 card tokens, got ${NAMES.length}`);
+
+  const offenders = [];
+  // EVERY non-test .js under src/, not just the three cards: a declaration anywhere in
+  // the cascade above a card shadows the inherited value just as effectively, and the
+  // three-file version of this would not have seen it. [SCO-2] sweeps the same way.
+  const walk = (dir, out = []) => {
+    for (const e of readdirSync(dir)) {
+      const p = join(dir, e);
+      if (statSync(p).isDirectory()) walk(p, out);
+      else if (e.endsWith(".js") && !e.includes(".test.")) out.push(p);
+    }
+    return out;
+  };
+  const FILES = walk(join(REPO, "src"));
+  assert.ok(FILES.length > 50, `expected a real sweep of src/, got ${FILES.length} files`);
+
+  for (const p of FILES) {
+    const id = p.slice(p.indexOf("src"));
+    const text = readFileSync(p, "utf8");
+    const code = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    for (const name of NAMES) {
+      // A DECLARATION is `--name:` NOT inside a var(). Every legitimate use here is
+      // `var(--name, …)`, so anything else is the thing this case exists to catch.
+      const re = new RegExp(String.raw`(^|[^(\w-])${name}\s*:`, "gm");
+      for (const m of code.matchAll(re)) {
+        const before = code.slice(Math.max(0, m.index - 4), m.index + 1);
+        if (before.includes("var(")) continue;
+        offenders.push(`${id}: ${name}`);
+      }
+    }
+  }
+  assert.deepEqual(offenders, [],
+    "these card tokens are DECLARED, which shadows any themes.yaml value a user sets " +
+    "for them — the token keeps working in the theme editor and silently stops working " +
+    "from YAML: " + JSON.stringify(offenders));
 });

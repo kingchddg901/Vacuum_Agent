@@ -25,6 +25,9 @@
 import { mapToken } from "./helpers.js";
 
 export const MAP_TOKENS = [
+  // The map FLOOR (styles/map.js, .evcc-map-container). Declared nowhere, so it falls
+  // through to --evcc-surface-panel when unset and a themeless map is unchanged.
+  mapToken.color("--evcc-map-background", "Map Background"),
   mapToken.color("--evcc-map-label-bg", "Map Label Background"),
   mapToken.color("--evcc-map-label-text", "Map Label Text"),
   mapToken.color("--evcc-map-label-text-selected", "Map Label Text (Selected)"),

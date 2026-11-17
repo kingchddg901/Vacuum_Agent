@@ -541,3 +541,106 @@ export function wireThemePanelLink(shadowRoot) {
     }
   });
 }
+
+/* =========================================================
+   PER-INSTANCE THEME VALUES FROM YAML  (`theme_vars`)
+   =========================================================
+   His ruling 2026-11-16: "YAML can be the winner its set directly after all". This is the
+   TOP rung of the card styling ladder, above the Vacuum Agent theme, because it is set on
+   one card instance rather than on every card a theme touches:
+
+     1. theme_vars on THIS card          <- here
+     2. the Vacuum Agent theme            (va_theme: true)
+     3. --evcc-card-<card>-<thing>        (themes.yaml, per card type)
+     4. --evcc-card-<thing>               (themes.yaml, all cards)
+     5. --ha-card-*                       (the Home Assistant theme)
+     6. the shipped default
+
+   A GENERIC MAP, not named options: "everything we exposed" is the whole registry and it
+   grows every release, so keying by token name covers all of it -- including tokens that
+   do not exist yet -- while the shipped config surface stays one key.
+   ========================================================= */
+
+/** The card-config key carrying per-instance theme values. */
+export const CARD_THEME_VARS_KEY = "theme_vars";
+
+/* A token name, with or without the leading dashes. Deliberately a SHAPE check rather
+   than a lookup against the registry: importing it would pull the whole token layer into
+   the cards bundle, and a shape check also accepts tokens added after this shipped. */
+const THEME_VAR_NAME = /^--evcc-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/* A custom property holds an arbitrary token stream, so a value containing `;` or `}`
+   cannot escape this element -- it only makes the declarations that var() it invalid at
+   computed-value time. Rejected anyway: the failure is invisible and far from its cause,
+   and "my card went blank" is a worse answer than "that value was ignored". */
+const THEME_VAR_VALUE_REJECT = /[;{}]|<\//;
+
+/**
+ * Canonical `--evcc-…` form of a theme-var name, or null when it is not one.
+ * Accepts the YAML-friendly `evcc-card-frame-background` as well as `--evcc-…`, because
+ * Home Assistant themes are written without the dashes and people copy that habit.
+ */
+export function normaliseThemeVarName(name) {
+  const raw = String(name ?? "").trim();
+  if (!raw) return null;
+  const dashed = raw.startsWith("--") ? raw : `--${raw}`;
+  return THEME_VAR_NAME.test(dashed) ? dashed : null;
+}
+
+/**
+ * The usable entries of a card's `theme_vars`, plus the ones that were refused.
+ * @returns {{vars: Array<[string, string]>, rejected: string[]}}
+ */
+export function readCardThemeVars(config) {
+  const raw = (config ?? {})[CARD_THEME_VARS_KEY];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { vars: [], rejected: [] };
+
+  const vars = [];
+  const rejected = [];
+  for (const [name, value] of Object.entries(raw)) {
+    const key = normaliseThemeVarName(name);
+    if (!key) { rejected.push(String(name)); continue; }
+    if (value === null || value === undefined || value === "") { continue; }
+    const v = String(value);
+    if (THEME_VAR_VALUE_REJECT.test(v)) { rejected.push(String(name)); continue; }
+    vars.push([key, v]);
+  }
+  return { vars, rejected };
+}
+
+/**
+ * Write a card's `theme_vars` onto `host` as inline properties, and drop any it set last
+ * time that have since gone.
+ *
+ * MUST RUN AFTER applyVaThemeToCard. Both write inline on the same element and the theme
+ * removeProperty()s every registry token it does not carry, so running this first would
+ * have the theme erase it on the very same tick.
+ *
+ * @param {HTMLElement} host
+ * @param {object} config
+ * @param {Set<string>|undefined} previous names written by the last call
+ * @param {(hex: string) => string|null} [animalComponents] conversion for --evcc-animal-*
+ * @returns {Set<string>} the names written this time; pass it back as `previous`
+ */
+export function applyCardThemeVars(host, config, previous, animalComponents) {
+  const applied = new Set();
+  if (!host || !host.style) return applied;
+
+  const { vars } = readCardThemeVars(config);
+  for (const [key, value] of vars) {
+    const out = (animalComponents && key.startsWith("--evcc-animal-"))
+      ? (animalComponents(value) ?? value)
+      : value;
+    host.style.setProperty(key, out);
+    applied.add(key);
+  }
+
+  // Removing what we previously set is what makes editing the YAML live: without it a
+  // deleted key keeps painting until a reload, and the card disagrees with its own config.
+  if (previous) {
+    for (const key of previous) {
+      if (!applied.has(key)) host.style.removeProperty(key);
+    }
+  }
+  return applied;
+}

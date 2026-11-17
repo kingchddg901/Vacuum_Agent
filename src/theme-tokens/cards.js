@@ -63,6 +63,16 @@ export const DASHBOARD_CARD_GROUP = "Dashboard Cards";
 const cardToken = makeTypedGroupToken(DASHBOARD_CARD_GROUP, "size");
 
 export const DASHBOARD_CARD_TOKENS = [
+  // The frame's own background and border colour. They are NOT the same question as
+  // Surface Card / Border Default, which paint the card's INSIDE as well -- these two
+  // move the frame alone, which is why a dashboard card's select and its room rows
+  // deliberately keep reading --surface / --border.
+  // An HA theme reaches these through --evcc-surface-card / --evcc-border-default
+  // instead (foundation.js, anchor RNT9NEY2); nothing here names an --ha-card-* rung,
+  // because a rung here would let an HA theme beat a VA one.
+  cardToken.color("--evcc-card-frame-background", "Frame Background"),
+  cardToken.color("--evcc-card-frame-border-color", "Frame Border Colour"),
+
   // A frame border is 0-8px in practice; 0 is a legitimate value and the
   // single most-requested one (#83). Half-pixel steps because HA themes in
   // the wild do use them.
@@ -233,13 +243,17 @@ const SHARED_BY_THING = new Map(
   DASHBOARD_CARD_TOKENS.map((t) => [t.key.replace("--evcc-card-", ""), t]),
 );
 
-/** Which of the eight each card actually reads. Measured, not assumed. */
+/** Which of the ten each card actually reads. Measured, not assumed.
+ *  All three read frame-background and frame-border-color: every card draws a frame,
+ *  the room card through ha-card and the other two through a plain div. */
 const READS = Object.freeze({
-  room: ["frame-border-width", "frame-shadow", "action-glow", "font-scale",
-         "header-padding", "field-gap"],
-  dashboard: ["frame-border-width", "frame-shadow", "action-glow", "font-scale",
-              "header-padding", "field-gap", "row-padding", "section-padding"],
-  profile: ["frame-border-width", "frame-shadow", "action-glow", "font-scale"],
+  room: ["frame-background", "frame-border-color", "frame-border-width", "frame-shadow",
+         "action-glow", "font-scale", "header-padding", "field-gap"],
+  dashboard: ["frame-background", "frame-border-color", "frame-border-width", "frame-shadow",
+              "action-glow", "font-scale", "header-padding", "field-gap",
+              "row-padding", "section-padding"],
+  profile: ["frame-background", "frame-border-color", "frame-border-width", "frame-shadow",
+            "action-glow", "font-scale"],
 });
 
 /** Editor subgroup per card. Deliberately NOT the card-picker name: that one
@@ -255,14 +269,16 @@ export const PER_CARD_GROUP = Object.freeze({
    scripts/check-styles.mjs builds its "tokens a theme may supply" inventory by
    TEXT-SCANNING this directory for --evcc-* literals; it does not import the
    registry. Keys built at runtime as `--evcc-card-${id}-${thing}` are therefore
-   invisible to it, and every one of the 51 var() sites reads as a dangling
-   reference -- measured, the build failed with exactly that count. Spelling the
+   invisible to it, and every var() site reads as a dangling reference -- measured
+   when this landed, the build failed with exactly one error per site (51 at the time). Spelling the
    keys out is the fix, not relaxing the gate: it also makes them greppable,
    which is how anyone actually finds a token.
    The SHAPE is still derived from the shared sibling below, so a retuned range
    cannot drift. [PCT-1] pins this list against what READS implies, so the two
    halves cannot disagree. */
 export const PER_CARD_KEYS = Object.freeze([
+  "--evcc-card-room-frame-background",
+  "--evcc-card-room-frame-border-color",
   "--evcc-card-room-frame-border-width",
   "--evcc-card-room-frame-shadow",
   "--evcc-card-room-action-glow",
@@ -270,6 +286,8 @@ export const PER_CARD_KEYS = Object.freeze([
   "--evcc-card-room-header-padding",
   "--evcc-card-room-field-gap",
 
+  "--evcc-card-dashboard-frame-background",
+  "--evcc-card-dashboard-frame-border-color",
   "--evcc-card-dashboard-frame-border-width",
   "--evcc-card-dashboard-frame-shadow",
   "--evcc-card-dashboard-action-glow",
@@ -279,6 +297,8 @@ export const PER_CARD_KEYS = Object.freeze([
   "--evcc-card-dashboard-row-padding",
   "--evcc-card-dashboard-section-padding",
 
+  "--evcc-card-profile-frame-background",
+  "--evcc-card-profile-frame-border-color",
   "--evcc-card-profile-frame-border-width",
   "--evcc-card-profile-frame-shadow",
   "--evcc-card-profile-action-glow",

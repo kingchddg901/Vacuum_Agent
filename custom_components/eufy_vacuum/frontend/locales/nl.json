@@ -2076,7 +2076,6 @@
       "evcc_text_secondary": "Tekst secundair",
       "evcc_text_strong": "Tekst sterk",
       "evcc_bg_input": "Achtergrond invoer",
-      "evcc_card_bg": "Kaartachtergrond",
       "evcc_card_frame_border_width": "Randbreedte",
       "evcc_card_frame_shadow": "Randschaduw",
       "evcc_card_action_glow": "Gloed actieknop",
@@ -2520,7 +2519,16 @@
       "evcc_floor_carpet_high_weave_opacity": "Dekking weefsellaag hoogpolig tapijt",
       "evcc_floor_granite_light_aggregate": "Korrelkleur graniet",
       "evcc_floor_granite_light_base_opacity": "Dekking basislaag graniet",
-      "evcc_floor_granite_light_aggregate_opacity": "Dekking korrellaag graniet"
+      "evcc_floor_granite_light_aggregate_opacity": "Dekking korrellaag graniet",
+      "evcc_card_frame_background": "Randachtergrond",
+      "evcc_card_room_frame_background": "Randachtergrond",
+      "evcc_card_dashboard_frame_background": "Randachtergrond",
+      "evcc_card_profile_frame_background": "Randachtergrond",
+      "evcc_card_frame_border_color": "Randkleur",
+      "evcc_card_room_frame_border_color": "Randkleur",
+      "evcc_card_dashboard_frame_border_color": "Randkleur",
+      "evcc_card_profile_frame_border_color": "Randkleur",
+      "evcc_map_background": "Kaartachtergrond"
     },
     "theme_group": {
       "app_shell_typography": "App-shell en typografie",

@@ -2091,7 +2091,6 @@
       "evcc_text_secondary": "Texto secundário",
       "evcc_text_strong": "Texto forte",
       "evcc_bg_input": "Fundo do campo",
-      "evcc_card_bg": "Fundo do cartão",
       "evcc_card_frame_border_width": "Espessura da borda da moldura",
       "evcc_card_frame_shadow": "Sombra da moldura",
       "evcc_card_action_glow": "Brilho de ação",
@@ -2535,7 +2534,16 @@
       "evcc_floor_carpet_high_weave_opacity": "Opacidade da camada de trama do carpete alto",
       "evcc_floor_granite_light_aggregate": "Cor do agregado do granito",
       "evcc_floor_granite_light_base_opacity": "Opacidade da camada base do granito",
-      "evcc_floor_granite_light_aggregate_opacity": "Opacidade da camada de agregado do granito"
+      "evcc_floor_granite_light_aggregate_opacity": "Opacidade da camada de agregado do granito",
+      "evcc_card_frame_background": "Fundo da moldura",
+      "evcc_card_room_frame_background": "Fundo da moldura",
+      "evcc_card_dashboard_frame_background": "Fundo da moldura",
+      "evcc_card_profile_frame_background": "Fundo da moldura",
+      "evcc_card_frame_border_color": "Cor da borda da moldura",
+      "evcc_card_room_frame_border_color": "Cor da borda da moldura",
+      "evcc_card_dashboard_frame_border_color": "Cor da borda da moldura",
+      "evcc_card_profile_frame_border_color": "Cor da borda da moldura",
+      "evcc_map_background": "Fundo do mapa"
     },
     "theme_group": {
       "app_shell_typography": "Estrutura da app e tipografia",

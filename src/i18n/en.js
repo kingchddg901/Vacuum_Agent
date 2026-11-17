@@ -2368,7 +2368,8 @@ export const en = {
   "vocab.theme_token.evcc_text_secondary": "Text Secondary",
   "vocab.theme_token.evcc_text_strong": "Text Strong",
   "vocab.theme_token.evcc_bg_input": "BG Input",
-  "vocab.theme_token.evcc_card_bg": "Card BG",
+  "vocab.theme_token.evcc_card_frame_background": "Frame Background",  // Dashboard Cards group: the fill behind a user-added card. NOT Surface Card, which also paints the card's inside
+  "vocab.theme_token.evcc_card_frame_border_color": "Frame Border Colour",  // Dashboard Cards group: colour of the outer edge of a user-added card. British label, American token name
   "vocab.theme_token.evcc_card_frame_border_width": "Frame Border Width",  // Dashboard Cards group: thickness of the outer edge of a user-added card
   "vocab.theme_token.evcc_card_frame_shadow": "Frame Shadow",  // Dashboard Cards group: CSS box-shadow on the outer edge of a user-added card
   "vocab.theme_token.evcc_card_action_glow": "Action Glow",  // Dashboard Cards group: accent halo behind a card's primary action button (Start, Run)
@@ -2455,6 +2456,7 @@ export const en = {
   "vocab.theme_token.evcc_room_grid_columns": "Room Grid Columns",
   "vocab.theme_token.evcc_room_grid_gap": "Room Grid Gap",
   "vocab.theme_token.evcc_room_grid_min": "Room Grid Min",
+  "vocab.theme_token.evcc_map_background": "Map Background",  // the map FLOOR -- non-room pixels are transparent, so this colour reads as floor. Falls through to Surface Panel when unset
   "vocab.theme_token.evcc_map_label_bg": "Map Label Background",
   "vocab.theme_token.evcc_map_label_text": "Map Label Text",
   "vocab.theme_token.evcc_map_label_text_selected": "Map Label Text (Selected)",
@@ -2868,6 +2870,12 @@ export const en = {
   "vocab.theme_token.evcc_card_room_action_glow": "Action Glow",  // per-card override of Action Glow for the Room card; same label as its shared sibling, told apart by its group
   "vocab.theme_token.evcc_card_room_field_gap": "Field Gap",  // per-card override of Field Gap for the Room card; same label as its shared sibling, told apart by its group
   "vocab.theme_token.evcc_card_room_font_scale": "Text Scale",  // per-card override of Text Scale for the Room card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_room_frame_background": "Frame Background",  // per-card override of Frame Background for the Room card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_room_frame_border_color": "Frame Border Colour",  // per-card override of Frame Border Colour for the Room card
+  "vocab.theme_token.evcc_card_dashboard_frame_background": "Frame Background",  // per-card override of Frame Background for the Dashboard card
+  "vocab.theme_token.evcc_card_dashboard_frame_border_color": "Frame Border Colour",  // per-card override of Frame Border Colour for the Dashboard card
+  "vocab.theme_token.evcc_card_profile_frame_background": "Frame Background",  // per-card override of Frame Background for the Profile card
+  "vocab.theme_token.evcc_card_profile_frame_border_color": "Frame Border Colour",  // per-card override of Frame Border Colour for the Profile card
   "vocab.theme_token.evcc_card_room_frame_border_width": "Frame Border Width",  // per-card override of Frame Border Width for the Room card; same label as its shared sibling, told apart by its group
   "vocab.theme_token.evcc_card_room_frame_shadow": "Frame Shadow",  // per-card override of Frame Shadow for the Room card; same label as its shared sibling, told apart by its group
   "vocab.theme_token.evcc_card_room_header_padding": "Header Padding",  // per-card override of Header Padding for the Room card; same label as its shared sibling, told apart by its group

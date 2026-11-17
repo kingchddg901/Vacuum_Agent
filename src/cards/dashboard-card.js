@@ -15,13 +15,16 @@ import {
   translate, resolveLang, ensureLocalesLoaded, applyDir,
   esc, vocab, roomSwitchesFor, adapterOptions, adapterRange, committedRoomFields, isMopMode,
   chipRow, sliderRow, SLIDER_ROW_CSS, callResponse, registerCard, defineCard, stripNull,
-  renderThemePanelLink, wireThemePanelLink, THEME_PANEL_LINK_CSS, renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang, GRID_DASHBOARD_CARD } from "./_shared.js";
+  renderThemePanelLink, wireThemePanelLink, THEME_PANEL_LINK_CSS, renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang, GRID_DASHBOARD_CARD,
+  applyCardThemeVars } from "./_shared.js";
 // ISSUE #65 -- this card owns its CSS and shipped with NO --evcc-* defined, so every
 // evcc token reference in it fell through to its white-alpha fallback and the card rendered
 // invisible on a light HA theme. Same gap as the standalone map embed, same repair:
 // define the tokens here rather than re-inking each fallback.
 import { foundationTokens } from "../styles/foundation.js";
 import { applyVaThemeToCard } from "../styles/card-theme.js";
+// See room-card.js: --evcc-animal-* are bare hsl() components, not colours.
+import { animalHslComponents } from "../styles/apply-tokens.js";
 import { emptyArmed, nextArmed, planStart, armedIsValid } from "./dashboard-dispatch.js";
 import { draftsToNormalizedRects, normRotation, ZONE_MAX_FALLBACK } from "./zone-geometry.js";
 import { dashboardSuggestion } from "./card-suggestions.js";
@@ -491,6 +494,20 @@ class EufyDashboardCard extends HTMLElement {
       this._config?.vacuum_entity_id,
       this._config?.va_theme === true,
     );
+
+    /* HIS RULING 2026-11-16: "YAML can be the winner its set directly after all".
+       `theme_vars` on this card's own config is the TOP rung -- above the Vacuum Agent
+       theme -- because it is set on one instance rather than on every card a theme
+       touches. AFTER the writer above and on EVERY render, because applyDynamicTheme
+       removeProperty()s every registry token the theme does not carry and both write
+       inline on this same host: running it first would have the theme erase it on the
+       same tick, and applying it once at setConfig would lose it on the next state
+       change. The previous set is tracked so deleting a key from the YAML stops
+       painting it, rather than leaving it stuck until a reload. */
+    this._appliedThemeVars = applyCardThemeVars(
+      this, this._config, this._appliedThemeVars, animalHslComponents,
+    );
+    this._applyThemeToMapHost();
 
     if (!this._config?.vacuum_entity_id) { this.shadowRoot.innerHTML = ""; return; }
 
@@ -1297,8 +1314,39 @@ class EufyDashboardCard extends HTMLElement {
     this._mapEl.hass = this._hass;
     this._mapEl.config = this._config;
     this._mapEl.setSnapshot?.(this._snapshot);
+    this._applyThemeToMapHost();   // before it enters the document, so it never paints unthemed
     slot.appendChild(this._mapEl);
     this._render();  // re-render so the section drops the loading hint
+  }
+
+  /* ---- the theme layer for the NESTED map host ----
+     <eufy-vacuum-map> has its OWN shadow root and injects foundationTokens into it, which
+     DECLARES ~425 --evcc-* tokens. A declaration in an element's own tree beats a value
+     inherited from this card, so forwarding hass/config/language was not enough: the map
+     re-derived every surface from the Home Assistant theme while the card frame followed
+     the Vacuum Agent one. Measured 2026-11-16 -- the card read Warm Light's #E7E0D3 for
+     --evcc-surface-panel while a host injecting the same foundationTokens read
+     color-mix(#1c2127 85%, #f0f2f5 15%). That is the dark map box in a light card.
+
+     applyVaThemeToCard writes the resolved layer as INLINE properties, and inline beats
+     the host's own :host rule -- the same bridge apply-theme.js makes for the modal host
+     and the mounted preview card. Calling it with enabled=false is not a no-op and must
+     not be skipped: it writes an EMPTY map, which is what REMOVES a previous paint when
+     va_theme is turned off. Gated by [MAP-THEME-*]. */
+  _applyThemeToMapHost() {
+    if (!this._mapEl) return;
+    applyVaThemeToCard(
+      this._mapEl,
+      this._hass,
+      this._config?.vacuum_entity_id,
+      this._config?.va_theme === true,
+    );
+    // Same reason the theme has to be bridged here at all: the map host injects
+    // foundationTokens into its OWN shadow root, so a value inherited from this card
+    // loses to its own declaration. Tracked separately from the card's own set.
+    this._appliedMapThemeVars = applyCardThemeVars(
+      this._mapEl, this._config, this._appliedMapThemeVars, animalHslComponents,
+    );
   }
 
   async _handleCleanZones() {
@@ -1364,7 +1412,7 @@ const CARD_CSS = `
   /* ISSUE #83 second pass -- the HA name is the MIDDLE fallback: VA token, then whatever
      an HA theme set, then our literal. This card frames with a plain div and never
      declares --ha-card-*, so unlike the room card there is no cycle to route around. */
-  .card { background: var(--surface); border: var(--evcc-card-dashboard-frame-border-width, var(--evcc-card-frame-border-width, var(--ha-card-border-width, 1px))) solid var(--border); border-radius: var(--radius); box-shadow: var(--evcc-card-dashboard-frame-shadow, var(--evcc-card-frame-shadow, var(--ha-card-box-shadow, none))); overflow: hidden; max-width: 480px; }
+  .card { background: var(--evcc-card-dashboard-frame-background, var(--evcc-card-frame-background, var(--surface))); border: var(--evcc-card-dashboard-frame-border-width, var(--evcc-card-frame-border-width, var(--ha-card-border-width, 1px))) solid var(--evcc-card-dashboard-frame-border-color, var(--evcc-card-frame-border-color, var(--border))); border-radius: var(--radius); box-shadow: var(--evcc-card-dashboard-frame-shadow, var(--evcc-card-frame-shadow, var(--ha-card-box-shadow, none))); overflow: hidden; max-width: 480px; }
 
   .header { display: flex; align-items: baseline; gap: 10px; padding: var(--evcc-card-dashboard-header-padding, var(--evcc-card-header-padding, var(--evcc-card-padding, 14px 16px 10px))); flex-wrap: wrap; }
   .header .va-lang { margin-inline-start: auto; align-self: center; }

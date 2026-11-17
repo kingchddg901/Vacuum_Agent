@@ -239,7 +239,6 @@
       "evcc_text_secondary": "نص ثانوي",
       "evcc_text_strong": "نص قوي",
       "evcc_bg_input": "خلفية الإدخال",
-      "evcc_card_bg": "خلفية البطاقة",
       "evcc_card_frame_border_width": "سماكة حدود الإطار",
       "evcc_card_frame_shadow": "ظل الإطار",
       "evcc_card_action_glow": "توهّج الإجراء",
@@ -683,7 +682,16 @@
       "evcc_animal_mittens_eye_warn": "العين — تحذير",
       "evcc_animal_mittens_eye_low": "العين — منخفضة",
       "evcc_animal_mittens_eye_charging": "العين — قيد الشحن",
-      "evcc_animal_mittens_eye": "أساس العين"
+      "evcc_animal_mittens_eye": "أساس العين",
+      "evcc_card_frame_background": "خلفية الإطار",
+      "evcc_card_room_frame_background": "خلفية الإطار",
+      "evcc_card_dashboard_frame_background": "خلفية الإطار",
+      "evcc_card_profile_frame_background": "خلفية الإطار",
+      "evcc_card_frame_border_color": "لون حدود الإطار",
+      "evcc_card_room_frame_border_color": "لون حدود الإطار",
+      "evcc_card_dashboard_frame_border_color": "لون حدود الإطار",
+      "evcc_card_profile_frame_border_color": "لون حدود الإطار",
+      "evcc_map_background": "خلفية الخريطة"
     },
     "theme_group": {
       "app_shell_typography": "هيكل التطبيق والطباعة",

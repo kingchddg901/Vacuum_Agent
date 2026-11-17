@@ -2079,7 +2079,6 @@
       "evcc_text_secondary": "Testo secondario",
       "evcc_text_strong": "Testo marcato",
       "evcc_bg_input": "Sfondo input",
-      "evcc_card_bg": "Sfondo scheda",
       "evcc_card_frame_border_width": "Spessore bordo cornice",
       "evcc_card_frame_shadow": "Ombra cornice",
       "evcc_card_action_glow": "Bagliore azione",
@@ -2523,7 +2522,16 @@
       "evcc_floor_carpet_high_weave_opacity": "Opacità livello trama moquette alta",
       "evcc_floor_granite_light_aggregate": "Colore aggregato granito",
       "evcc_floor_granite_light_base_opacity": "Opacità livello base granito",
-      "evcc_floor_granite_light_aggregate_opacity": "Opacità livello aggregato granito"
+      "evcc_floor_granite_light_aggregate_opacity": "Opacità livello aggregato granito",
+      "evcc_card_frame_background": "Sfondo cornice",
+      "evcc_card_room_frame_background": "Sfondo cornice",
+      "evcc_card_dashboard_frame_background": "Sfondo cornice",
+      "evcc_card_profile_frame_background": "Sfondo cornice",
+      "evcc_card_frame_border_color": "Colore bordo cornice",
+      "evcc_card_room_frame_border_color": "Colore bordo cornice",
+      "evcc_card_dashboard_frame_border_color": "Colore bordo cornice",
+      "evcc_card_profile_frame_border_color": "Colore bordo cornice",
+      "evcc_map_background": "Sfondo mappa"
     },
     "theme_group": {
       "app_shell_typography": "Interfaccia e tipografia",

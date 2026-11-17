@@ -239,7 +239,6 @@
       "evcc_text_secondary": "次要文字",
       "evcc_text_strong": "強調文字",
       "evcc_bg_input": "輸入背景",
-      "evcc_card_bg": "卡片背景",
       "evcc_card_frame_border_width": "邊框寬度",
       "evcc_card_frame_shadow": "邊框陰影",
       "evcc_card_action_glow": "動作光暈",
@@ -683,7 +682,16 @@
       "evcc_animal_mittens_eye_warn": "眼睛 — 警告",
       "evcc_animal_mittens_eye_low": "眼睛 — 低電量",
       "evcc_animal_mittens_eye_charging": "眼睛 — 充電中",
-      "evcc_animal_mittens_eye": "眼睛底色"
+      "evcc_animal_mittens_eye": "眼睛底色",
+      "evcc_card_frame_background": "邊框背景",
+      "evcc_card_room_frame_background": "邊框背景",
+      "evcc_card_dashboard_frame_background": "邊框背景",
+      "evcc_card_profile_frame_background": "邊框背景",
+      "evcc_card_frame_border_color": "邊框顏色",
+      "evcc_card_room_frame_border_color": "邊框顏色",
+      "evcc_card_dashboard_frame_border_color": "邊框顏色",
+      "evcc_card_profile_frame_border_color": "邊框顏色",
+      "evcc_map_background": "地圖背景"
     },
     "theme_group": {
       "app_shell_typography": "應用外殼與排版",

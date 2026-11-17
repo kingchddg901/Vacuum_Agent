@@ -239,7 +239,6 @@
       "evcc_text_secondary": "İkincil Metin",
       "evcc_text_strong": "Güçlü Metin",
       "evcc_bg_input": "Giriş Arka Planı",
-      "evcc_card_bg": "Kart Arka Planı",
       "evcc_card_frame_border_width": "Çerçeve Kenarlık Genişliği",
       "evcc_card_frame_shadow": "Çerçeve Gölgesi",
       "evcc_card_action_glow": "Eylem Parıltısı",
@@ -683,7 +682,16 @@
       "evcc_animal_mittens_eye_warn": "Göz — Uyarı",
       "evcc_animal_mittens_eye_low": "Göz — Düşük",
       "evcc_animal_mittens_eye_charging": "Göz — Şarj Oluyor",
-      "evcc_animal_mittens_eye": "Göz Tabanı"
+      "evcc_animal_mittens_eye": "Göz Tabanı",
+      "evcc_card_frame_background": "Çerçeve Arka Planı",
+      "evcc_card_room_frame_background": "Çerçeve Arka Planı",
+      "evcc_card_dashboard_frame_background": "Çerçeve Arka Planı",
+      "evcc_card_profile_frame_background": "Çerçeve Arka Planı",
+      "evcc_card_frame_border_color": "Çerçeve Kenarlık Rengi",
+      "evcc_card_room_frame_border_color": "Çerçeve Kenarlık Rengi",
+      "evcc_card_dashboard_frame_border_color": "Çerçeve Kenarlık Rengi",
+      "evcc_card_profile_frame_border_color": "Çerçeve Kenarlık Rengi",
+      "evcc_map_background": "Harita Arka Planı"
     },
     "theme_group": {
       "app_shell_typography": "Uygulama Kabuğu ve Tipografi",

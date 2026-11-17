@@ -31,7 +31,7 @@ export const themePreviewStyles = `
     min-height: 0;
     overflow: hidden;
     padding: 14px;
-    background: var(--evcc-surface-card, var(--evcc-card-bg, #242b33));
+    background: var(--evcc-surface-card, #242b33);
     border: 1px solid var(--evcc-border-subtle, rgba(255, 255, 255, 0.08));
     border-radius: var(--evcc-radius-card, 16px);
     box-shadow: var(--evcc-shadow-card, 0 12px 32px rgba(0, 0, 0, 0.25));
@@ -189,7 +189,7 @@ export const themePreviewStyles = `
     flex-direction: column;
     gap: 8px;
     padding: var(--evcc-card-padding, 14px);
-    background: var(--evcc-surface-card, var(--evcc-card-bg, #242b33));
+    background: var(--evcc-surface-card, #242b33);
     border-radius: var(--evcc-radius-card, 16px);
     box-shadow: var(--evcc-shadow-card, none);
   }
@@ -222,7 +222,7 @@ export const themePreviewStyles = `
   .evcc-theme-preview-order-target {
     padding: 12px;
     border-radius: var(--evcc-radius-inner, 12px);
-    background: var(--evcc-surface-card, var(--evcc-card-bg, #242b33));
+    background: var(--evcc-surface-card, #242b33);
     color: var(--evcc-text-primary, #f0f2f5);
     font-size: 0.82rem;
   }
@@ -291,7 +291,7 @@ export const themePreviewStyles = `
         color-mix(in srgb, var(--evcc-accent, #3b82f6) var(--evcc-room-fill-opacity, 10%), transparent),
         transparent 70%
       ),
-      var(--evcc-surface-card, var(--evcc-card-bg, #242b33));
+      var(--evcc-surface-card, #242b33);
   }
 
   .evcc-theme-preview-room-card--filled::before {

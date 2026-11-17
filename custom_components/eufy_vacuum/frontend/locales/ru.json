@@ -2174,7 +2174,6 @@
       "evcc_text_secondary": "Вторичный текст",
       "evcc_text_strong": "Жирный текст",
       "evcc_bg_input": "Фон поля ввода",
-      "evcc_card_bg": "Фон карточки",
       "evcc_card_frame_border_width": "Толщина границы рамки",
       "evcc_card_frame_shadow": "Тень рамки",
       "evcc_card_action_glow": "Свечение действия",
@@ -2618,7 +2617,16 @@
       "evcc_floor_carpet_high_weave_opacity": "Непрозрачность слоя плетения высокого ковра",
       "evcc_floor_granite_light_aggregate": "Цвет гранул гранита",
       "evcc_floor_granite_light_base_opacity": "Непрозрачность базового слоя гранита",
-      "evcc_floor_granite_light_aggregate_opacity": "Непрозрачность слоя гранул гранита"
+      "evcc_floor_granite_light_aggregate_opacity": "Непрозрачность слоя гранул гранита",
+      "evcc_card_frame_background": "Фон рамки",
+      "evcc_card_room_frame_background": "Фон рамки",
+      "evcc_card_dashboard_frame_background": "Фон рамки",
+      "evcc_card_profile_frame_background": "Фон рамки",
+      "evcc_card_frame_border_color": "Цвет границы рамки",
+      "evcc_card_room_frame_border_color": "Цвет границы рамки",
+      "evcc_card_dashboard_frame_border_color": "Цвет границы рамки",
+      "evcc_card_profile_frame_border_color": "Цвет границы рамки",
+      "evcc_map_background": "Фон карты"
     },
     "theme_group": {
       "app_shell_typography": "Оболочка и типографика",

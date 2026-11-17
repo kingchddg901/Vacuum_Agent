@@ -21,7 +21,6 @@ import { surfaceToken } from "./helpers.js";
 
 export const SURFACE_TOKENS = [
   surfaceToken.color("--evcc-bg-input", "BG Input"),
-  surfaceToken.color("--evcc-card-bg", "Card BG"),
   surfaceToken.size("--evcc-card-gap", "Card Gap"),
   surfaceToken.size("--evcc-card-min-height", "Card Min Height"),
   surfaceToken.size("--evcc-card-padding", "Card Padding"),

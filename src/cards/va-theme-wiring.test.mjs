@@ -90,35 +90,95 @@ test("[VTW-2] each call sits ABOVE any branch that clears the card's content", (
   // `indexOf(...)`, so an ablation that ADDED a second call below the clearing branch
   // left it green — the test was satisfied by the good call and blind to the bad one.
   // Ablation is what showed that; it looked identical to a passing test beforehand.
+  // A call inside a NAMED HELPER is checked at the helper's call sites instead. The
+  // dashboard card bridges the theme onto its nested <eufy-vacuum-map> from
+  // _applyThemeToMapHost(), which is not a _render() -- walking back from there lands in
+  // an unrelated function and asks a meaningless question. The invariant is unchanged;
+  // it is asked where the ordering actually lives. Re-aimed, not relaxed.
+  const HELPERS = ["_applyThemeToMapHost"];
+
+  /** [open, close] of the block that starts at the first `{` at or after `from`. */
+  function block(t, from) {
+    const open = t.indexOf("{", from);
+    if (open === -1) return null;
+    let depth = 0;
+    for (let k = open; k < t.length; k++) {
+      if (t[k] === "{") depth++;
+      else if (t[k] === "}" && --depth === 0) return [open, k];
+    }
+    return null;
+  }
+
+  /** Every occurrence of `needle`, each paired with the block its declaration opens. */
+  function bodies(t, needle) {
+    const out = [];
+    for (let i = t.indexOf(needle); i !== -1; i = t.indexOf(needle, i + 1)) {
+      const b = block(t, i);
+      if (b) out.push(b);
+    }
+    return out;
+  }
+
+  const inside = (ranges, i) => ranges.some(([a, b]) => i > a && i < b);
+
   for (const [name, rel] of CARDS) {
     const t = codeOnly(src(rel));
+    const renders = bodies(t, "_render() {");
+    const helperBodies = HELPERS.flatMap((h) => bodies(t, `${h}() {`));
+    assert.ok(renders.length > 0, `${name}: no _render() found`);
+
+    // Sites = direct calls, plus every invocation of a helper that makes the call. A call
+    // INSIDE a helper body is not a site: it is checked wherever that helper is invoked,
+    // so the helper cannot be moved below a clearing branch and escape this.
     const sites = [];
-    for (let i = t.indexOf("applyVaThemeToCard("); i !== -1; i = t.indexOf("applyVaThemeToCard(", i + 1)) {
-      sites.push(i);
-    }
+    const add = (needle) => {
+      for (let i = t.indexOf(needle); i !== -1; i = t.indexOf(needle, i + 1)) {
+        if (!inside(helperBodies, i)) sites.push(i);
+      }
+    };
+    add("applyVaThemeToCard(");
+    for (const h of HELPERS) add(`this.${h}()`);
     assert.ok(sites.length > 0, `${name}: could not find a call site`);
 
+    let checked = 0;
     for (const call of sites) {
-      // Walk back to the nearest enclosing `_render() {`. Each file holds TWO — the
-      // card's and its editor's — so anchoring on the first would test the wrong one.
-      const renderStart = t.lastIndexOf("_render() {", call);
-      assert.ok(renderStart > 0, `${name}: a call at ${call} is not inside a _render()`);
+      const render = renders.find(([a, b]) => call > a && call < b);
+      // A site outside every _render() is a different question (the map-creation path
+      // themes the host before appending it, which no ordering rule here governs).
+      if (!render) continue;
+      checked++;
 
-      const clears = t.indexOf("innerHTML", renderStart);
+      const clears = t.indexOf("innerHTML", render[0]);
       assert.ok(
-        clears > 0,
-        `${name}: no innerHTML write found in _render() — these cards all render by ` +
-        "assigning innerHTML, so this test's anchor has gone stale rather than the card " +
-        "having become safe. Do not relax it; re-aim it.",
+        clears > 0 && clears < render[1],
+        `${name}: no innerHTML write inside the _render() holding a call — these cards ` +
+        "all render by assigning innerHTML, so this test's anchor has gone stale rather " +
+        "than the card having become safe. Do not relax it; re-aim it.",
       );
       assert.ok(
         call < clears,
-        `${name}: applyVaThemeToCard is called AFTER _render() writes innerHTML ` +
+        `${name}: the theme is applied AFTER _render() writes innerHTML ` +
         `(call at ${call}, innerHTML at ${clears}). A branch that clears content and ` +
         "returns then skips the theme call, and because the tokens live on the HOST they " +
         "survive the clear — an empty card still wearing the palette, until a reload.",
       );
     }
+    assert.ok(checked > 0,
+      `${name}: no theme application was found inside a _render() at all — the card ` +
+      "would never repaint its palette on a state change.");
+
+    // A HELPER INVOCATION IS NOT A SUBSTITUTE FOR THE CARD'S OWN CALL. Found by ablation:
+    // deleting applyVaThemeToCard(this, ...) and leaving only this._applyThemeToMapHost()
+    // left this case GREEN, because the helper invocation satisfied it — the card itself
+    // would have stopped being themed while the map inside it stayed correct. The
+    // exemption that makes the helper checkable opened that hole; this closes it.
+    const direct = [];
+    for (let i = t.indexOf("applyVaThemeToCard("); i !== -1; i = t.indexOf("applyVaThemeToCard(", i + 1)) {
+      if (!inside(helperBodies, i) && renders.some(([a, b]) => i > a && i < b)) direct.push(i);
+    }
+    assert.ok(direct.length > 0,
+      `${name}: no DIRECT applyVaThemeToCard call inside a _render() — a helper that ` +
+      "themes something else does not theme this card.");
   }
 });
 

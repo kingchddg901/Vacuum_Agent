@@ -2092,7 +2092,6 @@
       "evcc_text_secondary": "Texte secondaire",
       "evcc_text_strong": "Texte renforcé",
       "evcc_bg_input": "Arrière-plan du champ",
-      "evcc_card_bg": "Arrière-plan carte",
       "evcc_card_frame_border_width": "Épaisseur bordure cadre",
       "evcc_card_frame_shadow": "Ombre du cadre",
       "evcc_card_action_glow": "Lueur action",
@@ -2536,7 +2535,16 @@
       "evcc_floor_carpet_high_weave_opacity": "Opacité du calque de tissage de la moquette épaisse",
       "evcc_floor_granite_light_aggregate": "Couleur du granulat du granit",
       "evcc_floor_granite_light_base_opacity": "Opacité du calque de base du granit",
-      "evcc_floor_granite_light_aggregate_opacity": "Opacité du calque de granulat du granit"
+      "evcc_floor_granite_light_aggregate_opacity": "Opacité du calque de granulat du granit",
+      "evcc_card_frame_background": "Arrière-plan du cadre",
+      "evcc_card_room_frame_background": "Arrière-plan du cadre",
+      "evcc_card_dashboard_frame_background": "Arrière-plan du cadre",
+      "evcc_card_profile_frame_background": "Arrière-plan du cadre",
+      "evcc_card_frame_border_color": "Couleur bordure cadre",
+      "evcc_card_room_frame_border_color": "Couleur bordure cadre",
+      "evcc_card_dashboard_frame_border_color": "Couleur bordure cadre",
+      "evcc_card_profile_frame_border_color": "Couleur bordure cadre",
+      "evcc_map_background": "Arrière-plan de la carte"
     },
     "theme_group": {
       "app_shell_typography": "Coquille d'application et typographie",

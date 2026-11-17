@@ -9,13 +9,18 @@ import { foundationTokens } from "./styles/foundation.js";
 import {
   esc, vocab, roomSwitchesFor, adapterOptions, adapterRange, sliderRow, SLIDER_ROW_CSS, committedRoomFields, isMopMode, canonicalCleanMode, stripNull, defineCard,
   renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang, GRID_ROOM_CARD,
-  renderThemePanelLink, wireThemePanelLink, THEME_PANEL_LINK_CSS, registerCard } from "./cards/_shared.js";
+  renderThemePanelLink, wireThemePanelLink, THEME_PANEL_LINK_CSS, registerCard,
+  applyCardThemeVars } from "./cards/_shared.js";
 import { roomSuggestion } from "./cards/card-suggestions.js";
 // Opt-in VA theming. From styles/card-theme.js, which reaches the token writer through
 // styles/apply-tokens.js rather than styles/index.js -- the latter imports every
 // stylesheet in the project and cost a measured +443,485 B to anything that only
 // wanted to paint variables.
 import { applyVaThemeToCard } from "./styles/card-theme.js";
+// --evcc-animal-* tokens are consumed as bare hsl() components, so a hex written
+// straight in renders the animal black. The theme writer already converts them;
+// theme_vars has to use the same conversion or the YAML path alone gets it wrong.
+import { animalHslComponents } from "./styles/apply-tokens.js";
 
 import { ROOM_CARD_NAME } from "./constants.js";
 
@@ -367,6 +372,19 @@ class EufyRoomCard extends HTMLElement {
       this._config?.va_theme === true,
     );
 
+    /* HIS RULING 2026-11-16: "YAML can be the winner its set directly after all".
+       `theme_vars` on this card's own config is the TOP rung -- above the Vacuum Agent
+       theme -- because it is set on one instance rather than on every card a theme
+       touches. AFTER the writer above and on EVERY render, because applyDynamicTheme
+       removeProperty()s every registry token the theme does not carry and both write
+       inline on this same host: running it first would have the theme erase it on the
+       same tick, and applying it once at setConfig would lose it on the next state
+       change. The previous set is tracked so deleting a key from the YAML stops
+       painting it, rather than leaving it stuck until a reload. */
+    this._appliedThemeVars = applyCardThemeVars(
+      this, this._config, this._appliedThemeVars, animalHslComponents,
+    );
+
     if (!this._config?.vacuum_entity_id || this._config?.room_id == null) {
       this.shadowRoot.innerHTML = "";
       return;
@@ -461,9 +479,23 @@ class EufyRoomCard extends HTMLElement {
           /* REPLICA RNA0TM68 -- the card FRAME. Twins: src/cards/dashboard-card.js
              (.card) and src/cards/profile-card.js (.evcc-pcard), which frame with a
              plain div and so spell the same rule as ordinary properties. Primary and
-             reasoning: src/theme-tokens/cards.js. */
-          --ha-card-background:    var(--surface);
-          --ha-card-border-color:  var(--border);
+             reasoning: src/theme-tokens/cards.js.
+
+             THE TWO --ha-card-* NAMES USED TO BE DECLARED HERE, as var(--surface) and
+             var(--border). That was issue #83 in its first form: a value an element
+             DECLARES beats one it INHERITS, so an HA theme's own ha-card-background and
+             ha-card-border-color were shadowed before they could be read, on the one card
+             of the three that actually renders an ha-card. Adding the inherited value as a
+             fallback IN PLACE is not available -- that is a self-reference, and CSS
+             discards a cycle WHOLE, which is the defect the border-radius note below
+             records. They are resolved here and applied on the ha-card ELEMENT instead,
+             exactly as the border-width/shadow pair above them is.
+             These chains END AT THE ALIAS, deliberately. --surface and --border already
+             resolve VA-then-HA-then-literal, because the HA rung now lives inside
+             --evcc-surface-card and --evcc-border-default themselves (foundation.js,
+             anchor RNT9NEY2). An --ha-card-* rung here would INVERT that -- letting an HA
+             theme beat a VA one -- and a literal here would be DEAD, because both of those
+             tokens are declared unconditionally. */
 
           /* ISSUE #83, SECOND PASS -- RESOLVE HERE, APPLY ON THE CHILD.
              The first pass declared --ha-card-border-width and --ha-card-box-shadow on
@@ -491,6 +523,10 @@ class EufyRoomCard extends HTMLElement {
                                     var(--ha-card-border-width, 1px)));
           --frame-shadow:       var(--evcc-card-room-frame-shadow, var(--evcc-card-frame-shadow,
                                     var(--ha-card-box-shadow, none)));
+          --frame-background:   var(--evcc-card-room-frame-background, var(--evcc-card-frame-background,
+                                    var(--surface)));
+          --frame-border-color: var(--evcc-card-room-frame-border-color, var(--evcc-card-frame-border-color,
+                                    var(--border)));
 
           /* NB: --ha-card-border-radius is deliberately NOT declared here. It used to
              be, as var(--radius), and that closed a three-property CYCLE:
@@ -530,6 +566,13 @@ class EufyRoomCard extends HTMLElement {
              reach it. */
           --ha-card-border-width: var(--frame-border-width);
           --ha-card-box-shadow:   var(--frame-shadow);
+          /* Same apply-half for the background and border colour. Safe for the same
+             reason: --surface and --border are declared on :host, so by the time this
+             element reads them they are inherited COMPUTED values with nothing left to
+             resolve -- the var(--ha-card-background) inside --evcc-surface-card was
+             already answered up there, where this name is not declared. */
+          --ha-card-background:   var(--frame-background);
+          --ha-card-border-color: var(--frame-border-color);
         }
 
         /* ---- header ---- */

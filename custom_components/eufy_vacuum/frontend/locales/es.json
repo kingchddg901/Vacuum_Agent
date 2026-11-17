@@ -2092,7 +2092,6 @@
       "evcc_text_secondary": "Texto secundario",
       "evcc_text_strong": "Texto destacado",
       "evcc_bg_input": "Fondo de entrada",
-      "evcc_card_bg": "Fondo de tarjeta",
       "evcc_card_frame_border_width": "Grosor del borde exterior",
       "evcc_card_frame_shadow": "Sombra del borde exterior",
       "evcc_card_action_glow": "Brillo de acción",
@@ -2536,7 +2535,16 @@
       "evcc_floor_carpet_high_weave_opacity": "Opacidad de capa de trama de alfombra alta",
       "evcc_floor_granite_light_aggregate": "Color de agregado de granito",
       "evcc_floor_granite_light_base_opacity": "Opacidad de capa base de granito",
-      "evcc_floor_granite_light_aggregate_opacity": "Opacidad de capa de agregado de granito"
+      "evcc_floor_granite_light_aggregate_opacity": "Opacidad de capa de agregado de granito",
+      "evcc_card_frame_background": "Fondo del marco",
+      "evcc_card_room_frame_background": "Fondo del marco",
+      "evcc_card_dashboard_frame_background": "Fondo del marco",
+      "evcc_card_profile_frame_background": "Fondo del marco",
+      "evcc_card_frame_border_color": "Color del borde exterior",
+      "evcc_card_room_frame_border_color": "Color del borde exterior",
+      "evcc_card_dashboard_frame_border_color": "Color del borde exterior",
+      "evcc_card_profile_frame_border_color": "Color del borde exterior",
+      "evcc_map_background": "Fondo del mapa"
     },
     "theme_group": {
       "app_shell_typography": "Marco de la app y tipografía",

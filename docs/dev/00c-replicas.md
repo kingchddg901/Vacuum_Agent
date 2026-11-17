@@ -72,6 +72,37 @@ Mint with `python scripts/doc_anchor.py --mint RN`.
 
 ## The sets
 
+### `RNT9NEY2` — the HA card-frame inputs · **2 copies, one question each**
+
+`--ha-card-background` and `--ha-card-border-color` are the two names a Home Assistant theme
+uses to style a card. They may be read in **exactly one place**: inside the declaration of
+the VA token that answers the same question.
+
+| Copy | The question it answers |
+|---|---|
+| `--evcc-surface-card` (foundation.js) — reads `--ha-card-background` | what colour is a card's fill? |
+| `--evcc-border-default` (foundation.js) — reads `--ha-card-border-color` | what colour is a card's edge? |
+
+**Why they cannot move into the card chains, which is where anyone would put them.** Both VA
+tokens are declared unconditionally, so a `var()` rung *behind* one is unreachable — dead on
+arrival, and silently, because the chain still has a working last resort. A rung *ahead* of
+one inverts the precedence: an HA theme would beat a VA theme, which darkens a card whose VA
+theme is light under a dark HA theme. Neither failure shows up in a test that only checks
+the name is present somewhere.
+
+Inside the declaration it is correct, because the VA theme editor writes its tokens as
+**inline** properties on the card host, and inline beats the `:host` rule this sits in. The
+declaration therefore computes only when no VA value exists — which is exactly *VA, else HA,
+else the literal*. `--ha-card-border-radius` has always worked this way at
+`--evcc-radius-card`; this pair follows it.
+
+Measured in Chromium against the built bundles, four paths × three cards: neither set → the
+literal; HA only → the HA value (**it was blocked before**); VA only → the VA value; both →
+VA wins. Pinned by `[CFR-11]`, which asserts the foundation shape *and* that no card names
+either token outside the room card's single apply site.
+
+---
+
 ### `RN3NP79M` — what a migration CARRY must report · **2 copies**
 
 `plan_migration` carries a stored room's durable settings onto a discovered room's new id

@@ -239,7 +239,6 @@
       "evcc_text_secondary": "Teks Sekunder",
       "evcc_text_strong": "Teks Kuat",
       "evcc_bg_input": "BG Input",
-      "evcc_card_bg": "BG Kartu",
       "evcc_card_frame_border_width": "Lebar Batas Bingkai",
       "evcc_card_frame_shadow": "Bayangan Bingkai",
       "evcc_card_action_glow": "Cahaya Aksi",
@@ -683,7 +682,16 @@
       "evcc_animal_mittens_eye_warn": "Mata — Peringatan",
       "evcc_animal_mittens_eye_low": "Mata — Rendah",
       "evcc_animal_mittens_eye_charging": "Mata — Mengisi Daya",
-      "evcc_animal_mittens_eye": "Dasar Mata"
+      "evcc_animal_mittens_eye": "Dasar Mata",
+      "evcc_card_frame_background": "Latar Belakang Bingkai",
+      "evcc_card_room_frame_background": "Latar Belakang Bingkai",
+      "evcc_card_dashboard_frame_background": "Latar Belakang Bingkai",
+      "evcc_card_profile_frame_background": "Latar Belakang Bingkai",
+      "evcc_card_frame_border_color": "Warna Batas Bingkai",
+      "evcc_card_room_frame_border_color": "Warna Batas Bingkai",
+      "evcc_card_dashboard_frame_border_color": "Warna Batas Bingkai",
+      "evcc_card_profile_frame_border_color": "Warna Batas Bingkai",
+      "evcc_map_background": "Latar Belakang Peta"
     },
     "theme_group": {
       "app_shell_typography": "App Shell & Tipografi",

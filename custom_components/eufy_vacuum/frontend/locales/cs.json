@@ -239,7 +239,6 @@
       "evcc_text_secondary": "Sekundární text",
       "evcc_text_strong": "Výrazný text",
       "evcc_bg_input": "Pozadí vstupu",
-      "evcc_card_bg": "Pozadí karty",
       "evcc_card_frame_border_width": "Šířka okraje rámečku",
       "evcc_card_frame_shadow": "Stín rámečku",
       "evcc_card_action_glow": "Záře akce",
@@ -683,7 +682,16 @@
       "evcc_animal_mittens_eye_warn": "Oko — varování",
       "evcc_animal_mittens_eye_low": "Oko — nízké",
       "evcc_animal_mittens_eye_charging": "Oko — nabíjení",
-      "evcc_animal_mittens_eye": "Základ oka"
+      "evcc_animal_mittens_eye": "Základ oka",
+      "evcc_card_frame_background": "Pozadí rámečku",
+      "evcc_card_room_frame_background": "Pozadí rámečku",
+      "evcc_card_dashboard_frame_background": "Pozadí rámečku",
+      "evcc_card_profile_frame_background": "Pozadí rámečku",
+      "evcc_card_frame_border_color": "Barva okraje rámečku",
+      "evcc_card_room_frame_border_color": "Barva okraje rámečku",
+      "evcc_card_dashboard_frame_border_color": "Barva okraje rámečku",
+      "evcc_card_profile_frame_border_color": "Barva okraje rámečku",
+      "evcc_map_background": "Pozadí mapy"
     },
     "theme_group": {
       "app_shell_typography": "Rámec aplikace a typografie",
