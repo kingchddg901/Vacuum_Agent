@@ -1845,7 +1845,7 @@
     "token_draft": "Черновик",
     "token_placeholder_lengths": "напр. 12px 16px — пусто наследует",
     "token_placeholder_shadow": "напр. 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "Собственные токены Vacuum Agent. Переменные темы Home Assistant — отдельная система: изменение в теме HA здесь не появится.",
+    "tokens_scope_hint": "Собственные токены Vacuum Agent. Переменные темы Home Assistant — отдельная система: изменение в теме HA здесь не появится. Эти токены можно задать и в YAML; заданные там значения здесь тоже не появятся.",
     "upload": "Загрузить",
     "upload_title": "Загрузить файл темы .json"
   },

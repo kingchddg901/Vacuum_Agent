@@ -2150,7 +2150,7 @@
     "token_draft": "Wersja robocza",
     "token_placeholder_lengths": "np. 12px 16px — puste dziedziczy",
     "token_placeholder_shadow": "np. 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "Własne tokeny Vacuum Agent. Zmienne motywu Home Assistant to oddzielny system — zmiana w motywie HA nie pojawi się tutaj.",
+    "tokens_scope_hint": "Własne tokeny Vacuum Agent. Zmienne motywu Home Assistant to oddzielny system — zmiana w motywie HA nie pojawi się tutaj. Te tokeny można ustawić także w YAML; wartości ustawione tam również nie pojawią się tutaj.",
     "upload": "Prześlij",
     "upload_title": "Prześlij plik motywu .json"
   },

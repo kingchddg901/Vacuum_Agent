@@ -1763,7 +1763,7 @@
     "token_draft": "Brouillon",
     "token_placeholder_lengths": "ex. 12px 16px — vide hérite",
     "token_placeholder_shadow": "ex. 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "Les jetons propres à Vacuum Agent. Les variables de thème Home Assistant sont un système distinct — une modification de votre thème HA n'apparaît pas ici.",
+    "tokens_scope_hint": "Les jetons propres à Vacuum Agent. Les variables de thème Home Assistant sont un système distinct — une modification de votre thème HA n'apparaît pas ici. Ces jetons peuvent aussi être définis en YAML ; les valeurs définies là non plus n'apparaissent pas ici.",
     "upload": "Importer",
     "upload_title": "Importer un fichier de thème .json"
   },

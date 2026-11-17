@@ -1762,7 +1762,7 @@
     "token_draft": "Rascunho",
     "token_placeholder_lengths": "ex. 12px 16px — vazio herda",
     "token_placeholder_shadow": "ex. 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "Tokens próprios do Vacuum Agent. As variáveis de tema do Home Assistant são um sistema separado — uma alteração no tema HA não aparece aqui.",
+    "tokens_scope_hint": "Tokens próprios do Vacuum Agent. As variáveis de tema do Home Assistant são um sistema separado — uma alteração no tema HA não aparece aqui. Estes tokens também podem ser definidos em YAML; os valores definidos aí também não aparecem aqui.",
     "upload": "Carregar",
     "upload_title": "Carregar um ficheiro .json de tema"
   },

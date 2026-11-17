@@ -1763,7 +1763,7 @@
     "token_draft": "Borrador",
     "token_placeholder_lengths": "p. ej. 12px 16px — vacío hereda",
     "token_placeholder_shadow": "p. ej. 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "Tokens propios de Vacuum Agent. Las variables de tema de Home Assistant son un sistema aparte: un cambio en tu tema de HA no aparece aquí.",
+    "tokens_scope_hint": "Tokens propios de Vacuum Agent. Las variables de tema de Home Assistant son un sistema aparte: un cambio en tu tema de HA no aparece aquí. Estos tokens también se pueden definir en YAML; los valores definidos ahí tampoco aparecen aquí.",
     "upload": "Subir",
     "upload_title": "Subir un archivo de tema .json"
   },

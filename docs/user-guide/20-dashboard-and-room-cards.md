@@ -246,8 +246,57 @@ my-theme:
 ```
 
 Swap `room`, `dashboard` or `profile` into `evcc-card-<card>-<property>` for the per-card
-form. Every control in the theme editor's **Dashboard Cards** group has a name of this
-shape; the group's own labels tell you which property each one is.
+form — so `evcc-card-frame-shadow` becomes `evcc-card-profile-frame-shadow`.
+
+#### Every control, and which cards read it
+
+The name in the first column is the shared one. Prefix the property with a card id for the
+per-card form. A card only reads the controls it has a use for, and setting one it does not
+read simply does nothing.
+
+| Set this | The control is called | Value | Room | Dashboard Mode | Profile |
+|---|---|---|---|---|---|
+| `evcc-card-frame-background` | Frame Background | any colour | ✅ | ✅ | ✅ |
+| `evcc-card-frame-border-color` | Frame Border Colour | any colour | ✅ | ✅ | ✅ |
+| `evcc-card-frame-border-width` | Frame Border Width | a length, 0–8px | ✅ | ✅ | ✅ |
+| `evcc-card-frame-shadow` | Frame Shadow | a CSS `box-shadow`, or `none` | ✅ | ✅ | ✅ |
+| `evcc-card-action-glow` | Action Glow | a CSS `box-shadow`, or `none` | ✅ | ✅ | ✅ |
+| `evcc-card-font-scale` | Text Scale | a number, 0.5–2 | ✅ | ✅ | ✅ |
+| `evcc-card-header-padding` | Header Padding | 1–4 CSS lengths | ✅ | ✅ | — |
+| `evcc-card-field-gap` | Field Gap | a length, 0–16px | ✅ | ✅ | — |
+| `evcc-card-row-padding` | Row Padding | 1–4 CSS lengths | — | ✅ | — |
+| `evcc-card-section-padding` | Section Padding | 1–4 CSS lengths | — | ✅ | — |
+
+The Profile card has no padding or gap controls because it has no rows, sections or header
+to pad; Row and Section Padding are Dashboard Mode only, as the only card with room rows
+and sections.
+
+A few notes on values:
+
+- **Lengths** take the usual CSS forms — `12px`, `0.75rem`, or several separated by spaces
+  the way CSS padding works (`14px 16px 12px`). In the editor a bare number gains `px`
+  when you leave the field; in YAML write the unit yourself.
+- **Text Scale** multiplies every font size in the card at once rather than setting one, so
+  the proportions between a heading, a room name and a chip hold at any size.
+- **Shadows** take a full CSS `box-shadow`, including a comma-separated stack of layers.
+  `none` is a value; leaving the name out entirely is different — that inherits.
+- **Four `ha-card-*` variables** reach the frame as well, listed in the table further up.
+  They sit below these names, so an `evcc-card-…` value wins over them.
+
+```yaml
+my-theme:
+  # all three cards
+  evcc-card-frame-background: "#1b1f24"
+  evcc-card-frame-border-width: "2px"
+  evcc-card-font-scale: "1.1"
+
+  # the Dashboard Mode card alone
+  evcc-card-dashboard-row-padding: "10px 14px"
+  evcc-card-dashboard-frame-shadow: "0 2px 8px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.06)"
+
+  # the Profile card alone
+  evcc-card-profile-frame-border-width: "0px"
+```
 
 **Which wins, if more than one is set:**
 

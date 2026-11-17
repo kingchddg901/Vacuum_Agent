@@ -2147,7 +2147,7 @@
     "token_draft": "Draf",
     "token_placeholder_lengths": "mis. 12px 16px — kosong mewarisi",
     "token_placeholder_shadow": "mis. 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "Token milik Vacuum Agent sendiri. Variabel tema Home Assistant adalah sistem terpisah — perubahan pada tema HA tidak muncul di sini.",
+    "tokens_scope_hint": "Token milik Vacuum Agent sendiri. Variabel tema Home Assistant adalah sistem terpisah — perubahan pada tema HA tidak muncul di sini. Token ini juga dapat diatur di YAML; nilai yang diatur di sana juga tidak muncul di sini.",
     "upload": "Unggah",
     "upload_title": "Unggah file .json tema"
   },

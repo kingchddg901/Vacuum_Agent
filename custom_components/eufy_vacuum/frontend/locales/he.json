@@ -1520,7 +1520,7 @@
     "token_draft": "טיוטה",
     "token_placeholder_lengths": "לדוגמה 12px 16px — ריק יורש",
     "token_placeholder_shadow": "לדוגמה 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "הטוקנים של Vacuum Agent עצמו. משתני ערכת הנושא של Home Assistant הם מערכת נפרדת — שינוי בערכת HA לא מופיע כאן.",
+    "tokens_scope_hint": "הטוקנים של Vacuum Agent עצמו. משתני ערכת הנושא של Home Assistant הם מערכת נפרדת — שינוי בערכת HA לא מופיע כאן. אפשר להגדיר את הטוקנים האלה גם ב-YAML; ערכים שהוגדרו שם גם הם לא מופיעים כאן.",
     "upload": "העלה",
     "upload_title": "העלה קובץ .json של ערכת נושא"
   },

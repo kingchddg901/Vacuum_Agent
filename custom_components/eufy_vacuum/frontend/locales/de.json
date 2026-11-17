@@ -1747,7 +1747,7 @@
     "token_draft": "Entwurf",
     "token_placeholder_lengths": "z. B. 12px 16px — leer erbt",
     "token_placeholder_shadow": "z. B. 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "Die eigenen Tokens von Vacuum Agent. Home-Assistant-Theme-Variablen sind ein separates System — eine Änderung im HA-Theme erscheint hier nicht.",
+    "tokens_scope_hint": "Die eigenen Tokens von Vacuum Agent. Home-Assistant-Theme-Variablen sind ein separates System — eine Änderung im HA-Theme erscheint hier nicht. Diese Tokens lassen sich auch in YAML setzen; dort gesetzte Werte erscheinen hier ebenfalls nicht.",
     "upload": "Hochladen",
     "upload_title": "Eine Theme-.json-Datei hochladen"
   },

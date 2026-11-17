@@ -177,3 +177,60 @@ test("[PCT-5] no card token is DECLARED anywhere — that absence is the YAML pa
     "for them — the token keeps working in the theme editor and silently stops working " +
     "from YAML: " + JSON.stringify(offenders));
 });
+
+test("[YDOC-1] the user guide's YAML table matches the registry — names, labels and readership", () => {
+  // THE RED INPUT: add an eleventh Dashboard Cards control, or change which cards read one,
+  // and leave the guide alone. The guide is where someone who chose YAML goes INSTEAD of
+  // opening the editor, so a missing row is a control they will never find, and a wrong
+  // tick is a value they will set and watch do nothing.
+  //
+  // Both counts in the 2.7.1 changelog rotted exactly this way within one release.
+  const guide = readFileSync(
+    join(REPO, "docs", "user-guide", "20-dashboard-and-room-cards.md"), "utf8");
+  const en = readFileSync(join(REPO, "src", "i18n", "en.js"), "utf8");
+
+  // The table rows look like: | `evcc-card-x` | Label | value | tick | tick | tick |
+  const rows = [...guide.matchAll(
+    /^\|\s*`(evcc-card-[a-z-]+)`\s*\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|/gm)]
+    .map((m) => ({
+      key: `--${m[1]}`,
+      label: m[2].trim(),
+      reads: { room: m[4].includes("\u2705"), dashboard: m[5].includes("\u2705"), profile: m[6].includes("\u2705") },
+    }));
+  assert.ok(rows.length > 0, "found no YAML reference rows in the user guide — the table's " +
+    "shape changed, so this gate has gone blind rather than the guide having become right");
+
+  // 1. exactly the shared tokens, no more and no fewer
+  assert.deepEqual(
+    rows.map((r) => r.key).sort(),
+    DASHBOARD_CARD_TOKENS.map((t) => t.key).sort(),
+    "the guide's YAML table and the Dashboard Cards registry disagree about which controls exist");
+
+  // 2. the label is the SHIPPED English one, not the registry's internal label.
+  //    --evcc-card-font-scale is "Font Scale" in the registry and "Text Scale" on screen.
+  for (const r of rows) {
+    const vocabKey = `vocab.theme_token.${r.key.replace(/^--/, "").replace(/-/g, "_")}`;
+    const m = en.match(new RegExp(`"${vocabKey.replace(/\./g, "\\.")}":\\s*"([^"]+)"`));
+    const shipped = m ? m[1] : null;
+    assert.ok(shipped, `${r.key} has no ${vocabKey} in en.js, so the guide cannot be checked ` +
+      "against what the editor actually shows");
+    assert.equal(r.label, shipped,
+      `the guide calls ${r.key} "${r.label}" but the editor shows "${shipped}" — a reader ` +
+      "following the guide would look for a control that is not on the screen");
+  }
+
+  // 3. the ticks match which cards actually read each control
+  const readsFromRegistry = {};
+  for (const k of PER_CARD_KEYS) {
+    const m = k.match(/^--evcc-card-(room|dashboard|profile)-(.+)$/);
+    (readsFromRegistry[`--evcc-card-${m[2]}`] ??= new Set()).add(m[1]);
+  }
+  for (const r of rows) {
+    const actual = readsFromRegistry[r.key] ?? new Set();
+    for (const card of ["room", "dashboard", "profile"]) {
+      assert.equal(r.reads[card], actual.has(card),
+        `${r.key}: the guide says ${card} ${r.reads[card] ? "does" : "does not"} read it, ` +
+        `the registry says it ${actual.has(card) ? "does" : "does not"}`);
+    }
+  }
+});

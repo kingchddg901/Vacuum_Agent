@@ -1517,7 +1517,7 @@
     "token_draft": "초안",
     "token_placeholder_lengths": "예: 12px 16px — 비우면 상속",
     "token_placeholder_shadow": "예: 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "Vacuum Agent 자체 토큰입니다. Home Assistant 테마 변수는 별개 시스템이며, HA 테마를 변경해도 여기에 나타나지 않습니다.",
+    "tokens_scope_hint": "Vacuum Agent 자체 토큰입니다. Home Assistant 테마 변수는 별개 시스템이며, HA 테마를 변경해도 여기에 나타나지 않습니다. 이 토큰은 YAML에서도 설정할 수 있습니다. 거기서 설정한 값도 여기에는 나타나지 않습니다.",
     "upload": "업로드",
     "upload_title": "테마 .json 파일 업로드"
   },

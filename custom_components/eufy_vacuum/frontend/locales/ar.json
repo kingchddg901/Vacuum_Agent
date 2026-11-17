@@ -1522,7 +1522,7 @@
     "token_draft": "مسودة",
     "token_placeholder_lengths": "مثال: 12px 16px — الفراغ يعني الوراثة",
     "token_placeholder_shadow": "مثال: 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "رموز Vacuum Agent الخاصة. متغيّرات سمة Home Assistant نظام منفصل — أي تغيير في سمة HA لا يظهر هنا.",
+    "tokens_scope_hint": "رموز Vacuum Agent الخاصة. متغيّرات سمة Home Assistant نظام منفصل — أي تغيير في سمة HA لا يظهر هنا. يمكن ضبط هذه الرموز في YAML أيضًا؛ والقيم المضبوطة هناك لا تظهر هنا كذلك.",
     "upload": "رفع",
     "upload_title": "رفع ملف سمة بصيغة .json"
   },

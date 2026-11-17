@@ -2147,7 +2147,7 @@
     "token_draft": "Taslak",
     "token_placeholder_lengths": "örn. 12px 16px — boş devralır",
     "token_placeholder_shadow": "örn. 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "Vacuum Agent'ın kendi token'ları. Home Assistant tema değişkenleri ayrı bir sistemdir — HA temanızdaki bir değişiklik burada görünmez.",
+    "tokens_scope_hint": "Vacuum Agent'ın kendi token'ları. Home Assistant tema değişkenleri ayrı bir sistemdir — HA temanızdaki bir değişiklik burada görünmez. Bu token'lar YAML'de de ayarlanabilir; orada ayarlanan değerler de burada görünmez.",
     "upload": "Yükle",
     "upload_title": "Bir tema .json dosyası yükle"
   },

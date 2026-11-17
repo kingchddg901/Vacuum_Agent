@@ -2149,7 +2149,7 @@
     "token_draft": "Koncept",
     "token_placeholder_lengths": "např. 12px 16px — prázdné dědí",
     "token_placeholder_shadow": "např. 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "Vlastní tokeny Vacuum Agent. Proměnné tématu Home Assistant jsou samostatný systém — změna v tématu HA se zde neobjeví.",
+    "tokens_scope_hint": "Vlastní tokeny Vacuum Agent. Proměnné tématu Home Assistant jsou samostatný systém — změna v tématu HA se zde neobjeví. Tyto tokeny lze nastavit i v YAML; hodnoty nastavené tam se zde také neobjeví.",
     "upload": "Nahrát",
     "upload_title": "Nahrát soubor motivu .json"
   },

@@ -1517,7 +1517,7 @@
     "token_draft": "草稿",
     "token_placeholder_lengths": "例如 12px 16px — 留空則繼承",
     "token_placeholder_shadow": "例如 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "這些是 Vacuum Agent 自己的令牌。Home Assistant 佈景主題變數屬於另一套系統——在 HA 佈景主題中的修改不會出現在這裡。",
+    "tokens_scope_hint": "這些是 Vacuum Agent 自己的令牌。Home Assistant 佈景主題變數屬於另一套系統——在 HA 佈景主題中的修改不會出現在這裡。這些權杖也可以在 YAML 中設定；在那裡設定的值同樣不會出現在這裡。",
     "upload": "上傳",
     "upload_title": "上傳佈景主題 .json 檔"
   },

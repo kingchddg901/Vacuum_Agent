@@ -1747,7 +1747,7 @@
     "token_draft": "Concept",
     "token_placeholder_lengths": "bv. 12px 16px — leeg erft",
     "token_placeholder_shadow": "bv. 0 2px 6px rgba(0,0,0,0.3)",
-    "tokens_scope_hint": "De eigen tokens van Vacuum Agent. Home Assistant-themavariabelen zijn een apart systeem — een wijziging in je HA-thema verschijnt hier niet.",
+    "tokens_scope_hint": "De eigen tokens van Vacuum Agent. Home Assistant-themavariabelen zijn een apart systeem — een wijziging in je HA-thema verschijnt hier niet. Deze tokens kunnen ook in YAML worden ingesteld; daar ingestelde waarden verschijnen hier evenmin.",
     "upload": "Uploaden",
     "upload_title": "Een thema-.json-bestand uploaden"
   },
