@@ -6,7 +6,7 @@
 
 > Generated reference — part of the [Theme System](../frontend/theme-system.md) docs. Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).
 
-The themeable control-surface tokens exposed in the theme editor: **434 tokens** across **27 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; **Default** is the value the card ships (the reverse lookup: scan a group for the colour you need instead of inventing one); bounded scalars list their slider range.
+The themeable control-surface tokens exposed in the theme editor: **452 tokens** across **30 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; **Default** is the value the card ships (the reverse lookup: scan a group for the colour you need instead of inventing one); bounded scalars list their slider range.
 
 The 5 companion sub-groups share one identical 14-token shape — only **Cat** is listed in full; Dog, Fox, Raccoon, Parrot, Snake repeat it with their own `-<animal>-` key segment.
 
@@ -129,6 +129,39 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-card-field-gap` | Field Gap | size | — | 0–16 step 0.5 |
 | `--evcc-card-action-glow` | Action Glow | shadow | — |  |
 | `--evcc-card-font-scale` | Font Scale | number | — | 0.5–2 step 0.05 |
+
+## Dashboard Cards — Room  ·  6
+
+| Token | Controls | Type | Default | Range |
+|---|---|---|---|---|
+| `--evcc-card-room-frame-border-width` | Frame Border Width | size | — | 0–8 step 0.5 |
+| `--evcc-card-room-frame-shadow` | Frame Shadow | shadow | — |  |
+| `--evcc-card-room-action-glow` | Action Glow | shadow | — |  |
+| `--evcc-card-room-font-scale` | Font Scale | number | — | 0.5–2 step 0.05 |
+| `--evcc-card-room-header-padding` | Header Padding | lengths | — |  |
+| `--evcc-card-room-field-gap` | Field Gap | size | — | 0–16 step 0.5 |
+
+## Dashboard Cards — Dashboard Mode  ·  8
+
+| Token | Controls | Type | Default | Range |
+|---|---|---|---|---|
+| `--evcc-card-dashboard-frame-border-width` | Frame Border Width | size | — | 0–8 step 0.5 |
+| `--evcc-card-dashboard-frame-shadow` | Frame Shadow | shadow | — |  |
+| `--evcc-card-dashboard-action-glow` | Action Glow | shadow | — |  |
+| `--evcc-card-dashboard-font-scale` | Font Scale | number | — | 0.5–2 step 0.05 |
+| `--evcc-card-dashboard-header-padding` | Header Padding | lengths | — |  |
+| `--evcc-card-dashboard-field-gap` | Field Gap | size | — | 0–16 step 0.5 |
+| `--evcc-card-dashboard-row-padding` | Row Padding | lengths | — |  |
+| `--evcc-card-dashboard-section-padding` | Section Padding | lengths | — |  |
+
+## Dashboard Cards — Profile  ·  4
+
+| Token | Controls | Type | Default | Range |
+|---|---|---|---|---|
+| `--evcc-card-profile-frame-border-width` | Frame Border Width | size | — | 0–8 step 0.5 |
+| `--evcc-card-profile-frame-shadow` | Frame Shadow | shadow | — |  |
+| `--evcc-card-profile-action-glow` | Action Glow | shadow | — |  |
+| `--evcc-card-profile-font-scale` | Font Scale | number | — | 0.5–2 step 0.05 |
 
 ## Map  ·  34
 

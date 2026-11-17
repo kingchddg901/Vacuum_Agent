@@ -347,13 +347,17 @@ test("[CFR-9] it declares them on the ha-card ELEMENT, from the :host intermedia
   assert.match(rule[0], /--ha-card-border-width:\s*var\(--frame-border-width\)/);
   assert.match(rule[0], /--ha-card-box-shadow:\s*var\(--frame-shadow\)/);
 
-  // And the intermediates must resolve VA-first, HA-second, literal-last.
+  // And the intermediates must resolve in the full order: this card's own token, then
+  // the one shared by all three, then whatever an HA theme set, then our literal. The
+  // per-card rung was added on top of this chain, so this assertion grew with it --
+  // and it is the ORDER that is the contract, not the depth. [PCT-4] guards the same
+  // direction for the other seven tokens.
   assert.match(ROOM,
-    /--frame-border-width:\s*var\(--evcc-card-frame-border-width,\s*var\(--ha-card-border-width,\s*1px\)\)/,
-    "the border-width intermediate must be VA token -> HA theme -> 1px, in that order");
+    /--frame-border-width:\s*var\(--evcc-card-room-frame-border-width,\s*var\(--evcc-card-frame-border-width,\s*var\(--ha-card-border-width,\s*1px\)\)\)/,
+    "border-width must be per-card -> shared -> HA theme -> 1px, in that order");
   assert.match(ROOM,
-    /--frame-shadow:\s*var\(--evcc-card-frame-shadow,\s*var\(--ha-card-box-shadow,\s*none\)\)/,
-    "the shadow intermediate must be VA token -> HA theme -> none, in that order");
+    /--frame-shadow:\s*var\(--evcc-card-room-frame-shadow,\s*var\(--evcc-card-frame-shadow,\s*var\(--ha-card-box-shadow,\s*none\)\)\)/,
+    "shadow must be per-card -> shared -> HA theme -> none, in that order");
 });
 
 test("[CFR-10] all three cards take the HA theme value as the MIDDLE fallback", () => {

@@ -158,6 +158,28 @@ Home Assistant theme variables are a separate system and never appear here — s
 [Styling the cards from a Home Assistant theme](../user-guide/20-dashboard-and-room-cards.md#styling-the-cards-from-a-home-assistant-theme)
 for the variables HA *can* reach.
 
+### Theming one card differently from the others
+
+**Dashboard Cards** holds the controls for the three cards you can add to a dashboard, and
+moving one there moves all three. Each card also has its own subgroup — **Room**,
+**Dashboard Mode** and **Profile** — and a value set there applies to that card alone.
+
+They read as a chain, most specific first:
+
+1. the card's own token (its subgroup),
+2. the shared **Dashboard Cards** token,
+3. the panel's equivalent, or the matching `ha-card-*` variable from your Home Assistant
+   theme for the frame controls,
+4. the card's built-in default.
+
+So setting nothing leaves every card as it was, setting a **Dashboard Cards** value moves
+all three together, and setting a subgroup value peels one card away from the rest.
+
+Each subgroup previews the card it names, so you are looking at the thing you are changing.
+A card only offers the controls it actually uses: the Profile card has no padding or gap
+controls because it reads none, and Row/Section Padding appear only under Dashboard Mode,
+which is the only card with room rows and sections.
+
 The filter chip row above the token list offers quick shortcuts:
 
 - **All** — show all tokens (default)

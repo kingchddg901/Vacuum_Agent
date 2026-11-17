@@ -39,6 +39,7 @@
 export const THEME_PREVIEW_CARD_SLOT_ID = "evcc-theme-preview-card-slot";
 
 import { animalEditorGroupLabel, ANIMAL_PARENT_GROUP } from "../theme-tokens/index.js";
+import { PER_CARD_GROUP } from "../theme-tokens/cards.js";
 import { userFloorGroupLabel } from "../theme-tokens/user-floors.js";
 import { currentUserMaterials, USER_MATERIAL_EVENT } from "../textures/user-materials.js";
 
@@ -88,6 +89,36 @@ const STATIC_PREVIEW_ENTRIES = {
     titleKey: "theme_preview.group.dashboard_cards.title",
     descKey: "theme_preview.group.dashboard_cards.desc",
   },
+  // THE PER-CARD SUBGROUPS. All three route to the SAME method as their parent --
+  // it emits a mount slot, and main.js decides WHICH card to put in it from the
+  // group that is showing. That split is deliberate: the renderer stays a pure
+  // string producer and the one thing that needs to know about custom elements
+  // stays in the one place that can create them.
+  //
+  // They are listed rather than allowlisted because an allowlist entry has to give a
+  // reason about the SURFACE ([TPC-3]), and "the preview only knows how to mount a
+  // room card" is a reason about effort. A slider labelled Profile that visibly moves
+  // a ROOM card is worse than no preview: it looks like it worked.
+  //
+  // Title and description are the parent's, reused rather than multiplied: four
+  // near-identical pane headings would cost 6 more keys across every pack to say
+  // what the group chip above them already says.
+  [PER_CARD_GROUP.room]: {
+    method: "_renderThemePreviewDashboardCards",
+    titleKey: "theme_preview.group.dashboard_cards.title",
+    descKey: "theme_preview.group.dashboard_cards.desc",
+  },
+  [PER_CARD_GROUP.dashboard]: {
+    method: "_renderThemePreviewDashboardCards",
+    titleKey: "theme_preview.group.dashboard_cards.title",
+    descKey: "theme_preview.group.dashboard_cards.desc",
+  },
+  [PER_CARD_GROUP.profile]: {
+    method: "_renderThemePreviewDashboardCards",
+    titleKey: "theme_preview.group.dashboard_cards.title",
+    descKey: "theme_preview.group.dashboard_cards.desc",
+  },
+
   "Floor Textures": {
     method: "_renderThemePreviewFloorTextures",
     titleKey: "theme_preview.group.floor.title",

@@ -2840,12 +2840,33 @@ export const en = {
   "vocab.theme_token.evcc_animal_mittens_eye_low": "Eye — Low",
   "vocab.theme_token.evcc_animal_mittens_eye_charging": "Eye — Charging",
   "vocab.theme_token.evcc_animal_mittens_eye": "Eye Base",
+  "vocab.theme_token.evcc_card_dashboard_action_glow": "Action Glow",  // per-card override of Action Glow for the Dashboard Mode card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_dashboard_field_gap": "Field Gap",  // per-card override of Field Gap for the Dashboard Mode card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_dashboard_font_scale": "Text Scale",  // per-card override of Text Scale for the Dashboard Mode card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_dashboard_frame_border_width": "Frame Border Width",  // per-card override of Frame Border Width for the Dashboard Mode card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_dashboard_frame_shadow": "Frame Shadow",  // per-card override of Frame Shadow for the Dashboard Mode card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_dashboard_header_padding": "Header Padding",  // per-card override of Header Padding for the Dashboard Mode card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_dashboard_row_padding": "Row Padding",  // per-card override of Row Padding for the Dashboard Mode card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_dashboard_section_padding": "Section Padding",  // per-card override of Section Padding for the Dashboard Mode card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_profile_action_glow": "Action Glow",  // per-card override of Action Glow for the Profile card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_profile_font_scale": "Text Scale",  // per-card override of Text Scale for the Profile card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_profile_frame_border_width": "Frame Border Width",  // per-card override of Frame Border Width for the Profile card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_profile_frame_shadow": "Frame Shadow",  // per-card override of Frame Shadow for the Profile card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_room_action_glow": "Action Glow",  // per-card override of Action Glow for the Room card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_room_field_gap": "Field Gap",  // per-card override of Field Gap for the Room card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_room_font_scale": "Text Scale",  // per-card override of Text Scale for the Room card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_room_frame_border_width": "Frame Border Width",  // per-card override of Frame Border Width for the Room card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_room_frame_shadow": "Frame Shadow",  // per-card override of Frame Shadow for the Room card; same label as its shared sibling, told apart by its group
+  "vocab.theme_token.evcc_card_room_header_padding": "Header Padding",  // per-card override of Header Padding for the Room card; same label as its shared sibling, told apart by its group
   "vocab.theme_group.animal_companion_cat": "Cat",
   "vocab.theme_group.animal_companion_dog": "Dog",
   "vocab.theme_group.animal_companion_fox": "Fox",
   "vocab.theme_group.animal_companion_parrot": "Parrot",
   "vocab.theme_group.animal_companion_raccoon": "Raccoon",
   "vocab.theme_group.animal_companion_snake": "Snake",
+  "vocab.theme_group.dashboard_cards_dashboard_mode": "Dashboard Mode",  // theme editor subgroup under Dashboard Cards: per-card overrides for this one card
+  "vocab.theme_group.dashboard_cards_profile": "Profile",  // theme editor subgroup under Dashboard Cards: per-card overrides for this one card
+  "vocab.theme_group.dashboard_cards_room": "Room",  // theme editor subgroup under Dashboard Cards: per-card overrides for this one card
   "vocab.theme_group.rainbow_bridge": "Rainbow Bridge",
 
   // === JOB SUMMARY MODAL =================================================

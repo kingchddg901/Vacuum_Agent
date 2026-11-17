@@ -190,3 +190,121 @@ export const DASHBOARD_CARD_TOKENS = [
     { min: 0.5, max: 2, step: 0.05 },
   ),
 ];
+
+/* =========================================================
+   PER-CARD OVERRIDES -- one more rung on the same chain
+   =========================================================
+   HIS CALL 2026-11-16, and the reason matters more than the feature: "yaml is
+   fine for some but most of the reason i made the theme editor is to not need
+   it for most people". A seam that only YAML can reach would have been half the
+   job again -- so these are real registry tokens with real controls, not just a
+   var() a theme author could discover.
+
+   THE CHAIN GAINS ONE RUNG, and that is the whole mechanism:
+
+       var(--evcc-card-<id>-<thing>,      <- this card only
+           var(--evcc-card-<thing>,       <- all three cards
+               var(<panel token | --ha-card-*>,
+                   <literal>)))
+
+   So: nothing set anywhere paints as it always did; the shared token moves all
+   three cards together; a per-card token moves exactly one. Each rung is
+   strictly more specific than the one it falls through to.
+
+   DERIVED FROM THE SHARED EIGHT, NOT RESTATED. Every per-card token copies its
+   sibling's label, type and range by spreading the already-built token object,
+   so a range retuned above cannot drift from its per-card twin -- which is the
+   defect a parallel table of {label, type, min, max, step} would invite, and
+   this group already carries two deliberately-explicit ranges that would be
+   exactly the thing to get wrong twice.
+
+   EACH CARD DECLARES ONLY WHAT IT READS, measured per token across the three
+   card files rather than assumed: the frame and text controls reach all three,
+   header padding and the field gap exist on the room and Dashboard Mode cards,
+   and row/section padding exist only on Dashboard Mode -- it is the only card
+   with room rows and sections. A control for a thing a card does not have would
+   be a slider that moves nothing, which is worse than its absence.
+   ========================================================= */
+
+/** The id each card is known by in the fixtures and the density specs. */
+const CARD_IDS = Object.freeze(["room", "dashboard", "profile"]);
+
+const SHARED_BY_THING = new Map(
+  DASHBOARD_CARD_TOKENS.map((t) => [t.key.replace("--evcc-card-", ""), t]),
+);
+
+/** Which of the eight each card actually reads. Measured, not assumed. */
+const READS = Object.freeze({
+  room: ["frame-border-width", "frame-shadow", "action-glow", "font-scale",
+         "header-padding", "field-gap"],
+  dashboard: ["frame-border-width", "frame-shadow", "action-glow", "font-scale",
+              "header-padding", "field-gap", "row-padding", "section-padding"],
+  profile: ["frame-border-width", "frame-shadow", "action-glow", "font-scale"],
+});
+
+/** Editor subgroup per card. Deliberately NOT the card-picker name: that one
+ *  reads "Eufy Room Card", and a brand word has no business naming a core
+ *  group whose siblings have to speak for every adapter. */
+export const PER_CARD_GROUP = Object.freeze({
+  room: `${DASHBOARD_CARD_GROUP} — Room`,
+  dashboard: `${DASHBOARD_CARD_GROUP} — Dashboard Mode`,
+  profile: `${DASHBOARD_CARD_GROUP} — Profile`,
+});
+
+/* EVERY PER-CARD KEY, SPELLED OUT, and it has to be.
+   scripts/check-styles.mjs builds its "tokens a theme may supply" inventory by
+   TEXT-SCANNING this directory for --evcc-* literals; it does not import the
+   registry. Keys built at runtime as `--evcc-card-${id}-${thing}` are therefore
+   invisible to it, and every one of the 51 var() sites reads as a dangling
+   reference -- measured, the build failed with exactly that count. Spelling the
+   keys out is the fix, not relaxing the gate: it also makes them greppable,
+   which is how anyone actually finds a token.
+   The SHAPE is still derived from the shared sibling below, so a retuned range
+   cannot drift. [PCT-1] pins this list against what READS implies, so the two
+   halves cannot disagree. */
+export const PER_CARD_KEYS = Object.freeze([
+  "--evcc-card-room-frame-border-width",
+  "--evcc-card-room-frame-shadow",
+  "--evcc-card-room-action-glow",
+  "--evcc-card-room-font-scale",
+  "--evcc-card-room-header-padding",
+  "--evcc-card-room-field-gap",
+
+  "--evcc-card-dashboard-frame-border-width",
+  "--evcc-card-dashboard-frame-shadow",
+  "--evcc-card-dashboard-action-glow",
+  "--evcc-card-dashboard-font-scale",
+  "--evcc-card-dashboard-header-padding",
+  "--evcc-card-dashboard-field-gap",
+  "--evcc-card-dashboard-row-padding",
+  "--evcc-card-dashboard-section-padding",
+
+  "--evcc-card-profile-frame-border-width",
+  "--evcc-card-profile-frame-shadow",
+  "--evcc-card-profile-action-glow",
+  "--evcc-card-profile-font-scale",
+]);
+
+/** Split a per-card key back into its card id and its shared sibling's suffix. */
+function splitPerCardKey(key) {
+  for (const id of CARD_IDS) {
+    const prefix = `--evcc-card-${id}-`;
+    if (key.startsWith(prefix)) return { id, thing: key.slice(prefix.length) };
+  }
+  throw new Error(`PER_CARD_KEYS: "${key}" names no known card id`);
+}
+
+export const PER_CARD_TOKENS = PER_CARD_KEYS.map((key) => {
+  const { id, thing } = splitPerCardKey(key);
+  const base = SHARED_BY_THING.get(thing);
+  if (!base) {
+    // Fails at IMPORT rather than shipping a token whose shape came from nowhere --
+    // a typo would otherwise mint a control with no range and a blank label.
+    throw new Error(`PER_CARD_KEYS: "${key}" has no shared token "${thing}"`);
+  }
+  if (!READS[id].includes(thing)) {
+    // A control for a thing this card does not read is a slider that moves nothing.
+    throw new Error(`PER_CARD_KEYS: ${id} does not read "${thing}"`);
+  }
+  return Object.freeze({ ...base, key, group: PER_CARD_GROUP[id] });
+});

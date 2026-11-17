@@ -37,6 +37,12 @@ export const STATIC_GROUPS_BEFORE_ANIMALS = [
   // The three cards a user adds to their OWN dashboard. Distinct from "Room Cards"
   // and "Cards & Surfaces" above, which both style the panel -- see cards.js.
   "Dashboard Cards",
+  // Per-card overrides. Same "Group — subgroup" shape the floor textures use, so
+  // the editor's existing one-level-at-a-time drill-down handles them for free
+  // and the parent chip still reaches all three. See PER_CARD_GROUP in cards.js.
+  "Dashboard Cards — Room",
+  "Dashboard Cards — Dashboard Mode",
+  "Dashboard Cards — Profile",
   "Map",
   "Floor Textures",
   "Floor Textures — Tile",

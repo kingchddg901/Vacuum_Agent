@@ -162,9 +162,21 @@ test.describe("theme preview: every subject renders", () => {
     // about. It is gated instead by [CPV-1..6] in card-preview.spec.mjs, which mount the
     // real panel and assert a populated card, and by [TPC-1] which proves the registry
     // entry exists at all.
+    //
+    // THE THREE PER-CARD SUBGROUPS ARE HERE FOR THE PARENT'S REASON, not a new one:
+    // they route to the same slot-emitting method, and main.js decides which of the
+    // three cards to mount from the group that is showing. The group names are written
+    // out rather than imported from PER_CARD_GROUP deliberately -- mount-entry.js
+    // records that Playwright's Node loader does not resolve theme-tokens/index.js's
+    // `export let`, and the `stale` check below is what stops these drifting: an
+    // exemption for a group that is no longer registered is red.
     const NOT_STRING_RENDERABLE = new Map([
       ["Dashboard Cards", "emits a mount slot; the card is attached after render, so a " +
         "string render has nothing to measure. Covered by [CPV-1..6]."],
+      ["Dashboard Cards — Room", "same mount slot as its parent; mounts a room card."],
+      ["Dashboard Cards — Dashboard Mode", "same mount slot as its parent; mounts the " +
+        "Dashboard Mode card."],
+      ["Dashboard Cards — Profile", "same mount slot as its parent; mounts the Profile card."],
     ]);
 
     // Hygiene: an exemption for a group that is no longer on the roster is a standing

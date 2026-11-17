@@ -34,7 +34,7 @@ import { entityDisplayName } from "../state/entity-display-name.js";
    --define __MAP_VER__, keyed to that bundle's own bytes). "dev" unbundled. */
 const MAP_VER = (typeof __MAP_VER__ !== "undefined") ? __MAP_VER__ : "dev";
 
-const CARD_NAME   = "vacuum-agent-dashboard";
+import { DASHBOARD_CARD_NAME as CARD_NAME } from "../constants.js";
 const CARD_EDITOR = "vacuum-agent-dashboard-editor";
 const DOMAIN      = "eufy_vacuum";
 
@@ -1350,46 +1350,46 @@ const CARD_CSS = `
   /* ISSUE #83 second pass -- the HA name is the MIDDLE fallback: VA token, then whatever
      an HA theme set, then our literal. This card frames with a plain div and never
      declares --ha-card-*, so unlike the room card there is no cycle to route around. */
-  .card { background: var(--surface); border: var(--evcc-card-frame-border-width, var(--ha-card-border-width, 1px)) solid var(--border); border-radius: var(--radius); box-shadow: var(--evcc-card-frame-shadow, var(--ha-card-box-shadow, none)); overflow: hidden; max-width: 480px; }
+  .card { background: var(--surface); border: var(--evcc-card-dashboard-frame-border-width, var(--evcc-card-frame-border-width, var(--ha-card-border-width, 1px))) solid var(--border); border-radius: var(--radius); box-shadow: var(--evcc-card-dashboard-frame-shadow, var(--evcc-card-frame-shadow, var(--ha-card-box-shadow, none))); overflow: hidden; max-width: 480px; }
 
-  .header { display: flex; align-items: baseline; gap: 10px; padding: var(--evcc-card-header-padding, var(--evcc-card-padding, 14px 16px 10px)); flex-wrap: wrap; }
+  .header { display: flex; align-items: baseline; gap: 10px; padding: var(--evcc-card-dashboard-header-padding, var(--evcc-card-header-padding, var(--evcc-card-padding, 14px 16px 10px))); flex-wrap: wrap; }
   .header .va-lang { margin-inline-start: auto; align-self: center; }
-  .title { font-size: calc(1.0rem * var(--evcc-card-font-scale, 1)); font-weight: 700; color: var(--evcc-text-strong, var(--text-primary)); }
-  .meta { font-size: calc(0.80rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted); display: inline-flex; align-items: center; gap: 8px; }
+  .title { font-size: calc(1.0rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); font-weight: 700; color: var(--evcc-text-strong, var(--text-primary)); }
+  .meta { font-size: calc(0.80rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); color: var(--text-muted); display: inline-flex; align-items: center; gap: 8px; }
   .batt { white-space: nowrap; }
 
-  .section { padding: var(--evcc-card-section-padding, var(--evcc-card-padding, 4px 12px 8px)); }
-  .section-label { font-size: calc(0.70rem * var(--evcc-card-font-scale, 1)); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 4px 4px; }
+  .section { padding: var(--evcc-card-dashboard-section-padding, var(--evcc-card-section-padding, var(--evcc-card-padding, 4px 12px 8px))); }
+  .section-label { font-size: calc(0.70rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 4px 4px; }
   .rooms.is-disabled { opacity: 0.4; pointer-events: none; }
   .group-head { display: flex; align-items: center; gap: var(--evcc-space-sm, 8px); cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
   .group-head .section-label { flex: 0 0 auto; }
-  .group-head .count { font-size: calc(0.68rem * var(--evcc-card-font-scale, 1)); font-weight: 600; color: var(--evcc-chip-active-text, color-mix(in srgb, var(--accent) 90%, white)); background: var(--evcc-chip-active-bg, color-mix(in srgb, var(--accent) 16%, transparent)); border-radius: 10px; padding: 1px 8px; }
-  .group-chevron { margin-inline-start: auto; color: var(--text-muted); font-size: calc(0.9rem * var(--evcc-card-font-scale, 1)); transition: transform var(--evcc-transition-normal, 150ms ease); }
+  .group-head .count { font-size: calc(0.68rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); font-weight: 600; color: var(--evcc-chip-active-text, color-mix(in srgb, var(--accent) 90%, white)); background: var(--evcc-chip-active-bg, color-mix(in srgb, var(--accent) 16%, transparent)); border-radius: 10px; padding: 1px 8px; }
+  .group-chevron { margin-inline-start: auto; color: var(--text-muted); font-size: calc(0.9rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); transition: transform var(--evcc-transition-normal, 150ms ease); }
   .rooms:not(.is-collapsed) .group-chevron,
   .map-section:not(.is-collapsed) .group-chevron { transform: rotate(180deg); }
-  .empty { padding: var(--evcc-space-lg, 16px); font-size: calc(0.85rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted); }
+  .empty { padding: var(--evcc-space-lg, 16px); font-size: calc(0.85rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); color: var(--text-muted); }
 
   .room-row { border: 1px solid var(--border); border-radius: var(--evcc-radius-inner, 8px); margin: var(--evcc-space-xs, 4px) 0; overflow: hidden; }
   .room-row.is-selected { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
-  .room-head { display: flex; align-items: center; gap: 10px; padding: var(--evcc-card-row-padding, var(--evcc-card-padding, 8px 10px)); }
+  .room-head { display: flex; align-items: center; gap: 10px; padding: var(--evcc-card-dashboard-row-padding, var(--evcc-card-row-padding, var(--evcc-card-padding, 8px 10px))); }
   .include { width: 22px; height: 22px; flex-shrink: 0; border: none; background: transparent; cursor: pointer; padding: 0; }
   .include .box { display: block; width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--text-muted); transition: all var(--evcc-transition-normal, 150ms ease); }
   .room-row.is-selected .include .box { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--surface); }
-  .room-name { flex: 1; min-width: 0; font-size: calc(0.92rem * var(--evcc-card-font-scale, 1)); font-weight: 600; color: var(--evcc-text-strong, var(--text-primary)); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .room-name { flex: 1; min-width: 0; font-size: calc(0.92rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); font-weight: 600; color: var(--evcc-text-strong, var(--text-primary)); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
-  .chevron { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: calc(0.9rem * var(--evcc-card-font-scale, 1)); transition: transform var(--evcc-transition-normal, 150ms ease); }
+  .chevron { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: calc(0.9rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); transition: transform var(--evcc-transition-normal, 150ms ease); }
   .room-row.is-open .chevron { transform: rotate(180deg); }
 
   .room-body { display: flex; flex-direction: column; gap: var(--evcc-section-gap, 10px); padding: 4px 12px 12px; border-top: 1px solid var(--border); }
-  .carpet { font-size: calc(0.78rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted); background: var(--evcc-surface-subtle, rgba(255,255,255,0.04)); border: 1px solid var(--border); border-radius: var(--evcc-radius-inner, 8px); padding: 6px 10px; }
-  .field-group { display: flex; flex-direction: column; gap: var(--evcc-card-field-gap, var(--evcc-card-gap, 6px)); }
-  .field-label { font-size: calc(0.70rem * var(--evcc-card-font-scale, 1)); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .carpet { font-size: calc(0.78rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); color: var(--text-muted); background: var(--evcc-surface-subtle, rgba(255,255,255,0.04)); border: 1px solid var(--border); border-radius: var(--evcc-radius-inner, 8px); padding: 6px 10px; }
+  .field-group { display: flex; flex-direction: column; gap: var(--evcc-card-dashboard-field-gap, var(--evcc-card-field-gap, var(--evcc-card-gap, 6px))); }
+  .field-label { font-size: calc(0.70rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
   /* REPLICA RNN1M4G1 -- the card CHIP. Twin: src/room-card.js, which carries the
      primary and the reasoning. Mirrors .evcc-chip in src/styles/foundation.js; the
      fallbacks are the --evcc-chip-* token defaults, not what this card used to
      hardcode, so one chip token moves the panel and both cards identically. */
   .chips { display: flex; flex-wrap: wrap; gap: var(--evcc-chip-gap, 6px); }
-  .chip { display: inline-flex; align-items: center; justify-content: center; min-height: var(--evcc-chip-height, 24px); padding: var(--evcc-chip-padding, 5px 14px); border-radius: var(--evcc-chip-radius, 999px); border: 1px solid var(--evcc-chip-border, var(--evcc-border-default)); background: var(--evcc-chip-bg, var(--evcc-surface-input)); color: var(--evcc-chip-text, var(--evcc-text-secondary)); font-size: calc(var(--evcc-chip-font-size, 0.82rem) * var(--evcc-card-font-scale, 1)); font-weight: var(--evcc-chip-font-weight, 500); line-height: 1; cursor: pointer; transition: background var(--evcc-transition-normal, 150ms ease), border-color var(--evcc-transition-normal, 150ms ease), color var(--evcc-transition-normal, 150ms ease); }
+  .chip { display: inline-flex; align-items: center; justify-content: center; min-height: var(--evcc-chip-height, 24px); padding: var(--evcc-chip-padding, 5px 14px); border-radius: var(--evcc-chip-radius, 999px); border: 1px solid var(--evcc-chip-border, var(--evcc-border-default)); background: var(--evcc-chip-bg, var(--evcc-surface-input)); color: var(--evcc-chip-text, var(--evcc-text-secondary)); font-size: calc(var(--evcc-chip-font-size, 0.82rem) * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); font-weight: var(--evcc-chip-font-weight, 500); line-height: 1; cursor: pointer; transition: background var(--evcc-transition-normal, 150ms ease), border-color var(--evcc-transition-normal, 150ms ease), color var(--evcc-transition-normal, 150ms ease); }
   .chip:hover:not(.active) { background: var(--evcc-chip-hover-bg, var(--evcc-surface-panel)); color: var(--evcc-chip-hover-text, var(--evcc-text-primary)); border-color: var(--evcc-chip-hover-border, var(--evcc-border-strong)); }
   /* The active label's fallback is the card's SHIPPED colour (accent lightened 10%
      toward white, 4.02:1), not the panel's token default (bare accent, 3.49:1) -- the
@@ -1400,7 +1400,7 @@ const CARD_CSS = `
 
   .launcher { display: flex; flex-direction: column; gap: var(--evcc-section-gap, 10px); }
   .launch-group { display: flex; flex-direction: column; gap: var(--evcc-space-xs, 4px); }
-  select { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-primary); font-size: calc(0.88rem * var(--evcc-card-font-scale, 1)); appearance: none; -webkit-appearance: none; }
+  select { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-primary); font-size: calc(0.88rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); appearance: none; -webkit-appearance: none; }
   /* The POPUP, which the rule above cannot reach. A closed <select> takes the card's
      background; the open option list is painted by the UA and on several platforms
      ignores the control's own colours entirely, so a dark card opened a light list.
@@ -1410,7 +1410,7 @@ const CARD_CSS = `
      the three cards: room-card's and profile-card's are inside their config EDITORS,
      which are HA chrome and deliberately left alone. */
   select option { background: var(--evcc-surface-panel, #1c2127); color: var(--evcc-text-primary, #f0f2f5); }
-  .hint { font-size: calc(0.72rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted); padding: 0 2px; }
+  .hint { font-size: calc(0.72rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); color: var(--text-muted); padding: 0 2px; }
 
   .zone { display: flex; flex-direction: column; gap: 8px; }
   .zone-surface { position: relative; width: 100%; aspect-ratio: 1 / 1; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--evcc-surface-sunken, rgba(0,0,0,0.18)); touch-action: none; cursor: crosshair; -webkit-user-select: none; user-select: none; }
@@ -1419,22 +1419,22 @@ const CARD_CSS = `
   .zone-overlay { position: absolute; inset: 0; pointer-events: none; }
   .zone-rect { position: absolute; box-sizing: border-box; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 3px; cursor: pointer; pointer-events: auto; }
   .zone-rect:hover { background: color-mix(in srgb, var(--accent) 36%, transparent); }
-  .zone-num { position: absolute; top: -1px; inset-inline-start: -1px; font-size: calc(0.6rem * var(--evcc-card-font-scale, 1)); font-weight: 700; color: var(--evcc-text-on-accent, #fff); background: var(--accent); border-radius: 0 0 6px 0; padding: 0 5px; line-height: 1.45; }
+  .zone-num { position: absolute; top: -1px; inset-inline-start: -1px; font-size: calc(0.6rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); font-weight: 700; color: var(--evcc-text-on-accent, #fff); background: var(--accent); border-radius: 0 0 6px 0; padding: 0 5px; line-height: 1.45; }
   .zone-draft-live { position: absolute; display: none; box-sizing: border-box; border: 2px dashed var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .zone-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .zone-bar .spacer { flex: 1; }
-  .zone-hint { font-size: calc(0.72rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted); }
+  .zone-hint { font-size: calc(0.72rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); color: var(--text-muted); }
 
   .strict-order { display: flex; padding: 8px 4px 2px; }
 
-  .map-section { padding: var(--evcc-card-section-padding, var(--evcc-card-padding, 4px 12px 8px)); }
+  .map-section { padding: var(--evcc-card-dashboard-section-padding, var(--evcc-card-section-padding, var(--evcc-card-padding, 4px 12px 8px))); }
   .map-slot { display: block; min-height: 40px; }
-  .map-loading { padding: 24px 12px; text-align: center; font-size: calc(0.78rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted); }
+  .map-loading { padding: 24px 12px; text-align: center; font-size: calc(0.78rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); color: var(--text-muted); }
 
   .footer { display: flex; justify-content: flex-end; align-items: center; gap: var(--evcc-space-sm, 8px); padding: 10px 16px; border-top: 1px solid var(--border); }
-  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: var(--evcc-radius-chip, 999px); border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: calc(0.82rem * var(--evcc-card-font-scale, 1)); font-weight: 600; cursor: pointer; transition: all var(--evcc-transition-normal, 150ms ease); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: var(--evcc-radius-chip, 999px); border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: calc(0.82rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); font-weight: 600; cursor: pointer; transition: all var(--evcc-transition-normal, 150ms ease); }
   .btn:hover { color: var(--text-primary); }
-  .btn-start { box-shadow: var(--evcc-card-action-glow, none); color: var(--evcc-text-on-accent, #fff); border-color: transparent; background: var(--accent); }
+  .btn-start { box-shadow: var(--evcc-card-dashboard-action-glow, var(--evcc-card-action-glow, none)); color: var(--evcc-text-on-accent, #fff); border-color: transparent; background: var(--accent); }
   .btn-start:hover { background: color-mix(in srgb, var(--accent) 85%, white); }
   .btn-start:disabled { opacity: 0.4; cursor: default; background: var(--accent); }
   .btn-start:active:not(:disabled) { transform: scale(var(--evcc-press-scale, 0.96)); }
@@ -1460,14 +1460,14 @@ const CARD_CSS = `
     display: flex;
     flex-direction: column;
     gap: 8px;
-    font-size: calc(0.85rem * var(--evcc-card-font-scale, 1));
+    font-size: calc(0.85rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1)));
   }
   .soro-header { display: flex; align-items: center; justify-content: space-between; gap: var(--evcc-space-sm, 8px); flex-wrap: wrap; }
-  .soro-consent { font-size: calc(0.72rem * var(--evcc-card-font-scale, 1)); color: var(--text-muted); flex: 1 1 auto; min-width: 0; }
+  .soro-consent { font-size: calc(0.72rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); color: var(--text-muted); flex: 1 1 auto; min-width: 0; }
   .soro-body { display: flex; flex-direction: column; gap: 6px; }
   .soro-names { color: inherit; word-break: break-word; }
   .soro-status { font-weight: 600; }
-  .soro-diff { display: flex; flex-direction: column; gap: var(--evcc-space-xs, 4px); font-size: calc(0.8rem * var(--evcc-card-font-scale, 1)); }
+  .soro-diff { display: flex; flex-direction: column; gap: var(--evcc-space-xs, 4px); font-size: calc(0.8rem * var(--evcc-card-dashboard-font-scale, var(--evcc-card-font-scale, 1))); }
   .soro-diff small { color: var(--text-muted); margin-inline-end: 6px; display: inline-block; }
   /* wrap: two full-width buttons on a phone ran off the edge of the panel's copy
      of this row, and the same labels sit here. */

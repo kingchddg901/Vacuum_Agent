@@ -1,6 +1,10 @@
 // Root custom element for the Eufy Vacuum Command Center Lovelace card.
 
-import { CARD_NAME, CARD_VERSION, ROOM_CARD_NAME } from "./constants.js";
+import {
+  CARD_NAME, CARD_VERSION,
+  ROOM_CARD_NAME, DASHBOARD_CARD_NAME, PROFILE_CARD_NAME,
+} from "./constants.js";
+import { PER_CARD_GROUP } from "./theme-tokens/cards.js";
 import { roomSwitchesFor }                    from "./cards/_shared.js";
 import { THEME_PREVIEW_CARD_SLOT_ID }         from "./renderers/theme-preview-registry.js";
 import { ensureUserMaterialsLoaded } from "./textures/ensure-user-materials.js";
@@ -1857,12 +1861,41 @@ class EufyVacuumCommandCenter extends HTMLElement {
     const rooms = roomSwitchesFor(this._hass, vacuumEntityId);
     if (!rooms.length) return;   // the renderer checks this too; it can change between
 
+    // WHICH CARD. The parent group's tokens reach all three cards, so it previews the
+    // room card -- the one every token in that group touches. A PER-CARD subgroup
+    // previews the card it names, because a slider labelled Profile that visibly moves
+    // a ROOM card is worse than no preview at all: it looks like it worked.
+    //
+    // show_map is off for the Dashboard Mode preview on purpose. Left on, mounting it
+    // would dynamically import the 1.1 MB map bundle and start its two frame pollers,
+    // to render a map none of these eight tokens can move.
+    const group = this._state?.currentThemePreviewGroup?.() ?? "";
+    const spec = {
+      [PER_CARD_GROUP.room]: { tag: ROOM_CARD_NAME },
+      [PER_CARD_GROUP.dashboard]: { tag: DASHBOARD_CARD_NAME, config: { show_map: false } },
+      [PER_CARD_GROUP.profile]: { tag: PROFILE_CARD_NAME },
+    }[group] ?? { tag: ROOM_CARD_NAME };
+
+    // A card cannot be re-typed in place, so a group change across cards replaces the
+    // element. Within one card the element still persists across renders -- see the
+    // note above about setConfig re-running and the preview flickering under a drag.
+    if (this._themePreviewCardEl && this._themePreviewCardTag !== spec.tag) {
+      this._themePreviewCardEl.remove();
+      this._themePreviewCardEl = null;
+    }
+
     if (!this._themePreviewCardEl) {
-      const el = document.createElement(ROOM_CARD_NAME);
+      const el = document.createElement(spec.tag);
       // setConfig BEFORE hass, the order every card in this repo expects: setConfig
-      // establishes which room to read, and the hass setter triggers the first render.
-      el.setConfig({ vacuum_entity_id: vacuumEntityId, room_id: rooms[0].attrs.room_id });
+      // establishes what to read, and the hass setter triggers the first render.
+      // room_id is the room card's; the other two take the vacuum alone and ignore it.
+      el.setConfig({
+        vacuum_entity_id: vacuumEntityId,
+        room_id: rooms[0].attrs.room_id,
+        ...(spec.config ?? {}),
+      });
       this._themePreviewCardEl = el;
+      this._themePreviewCardTag = spec.tag;
     }
     if (this._themePreviewCardEl.parentNode !== slot) slot.appendChild(this._themePreviewCardEl);
     this._themePreviewCardEl.hass = this._hass;

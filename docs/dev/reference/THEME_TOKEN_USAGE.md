@@ -8,8 +8,8 @@
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 
-- Catalog **434** · consumer `var()` uses **2552**
-- **286** with a STATIC consumer · **148** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
+- Catalog **452** · consumer `var()` uses **2603**
+- **304** with a STATIC consumer · **148** consumed DYNAMICALLY (constructed names, below) · **0** with no consumer at all
 - `var()` → non-catalog tokens **13** · dynamic `var(--evcc-…${…})` sites **3**
 
 > **A token with no STATIC consumer is not dead.** This tracer is a regex scan and cannot follow a `var()` whose name is built at runtime, so 148 live tokens would otherwise read as rot — and deleting them would break theming for every animal, every floor material and the whole room palette. The families that construct their names:
@@ -740,39 +740,99 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 ## Dashboard Cards  ·  8 static / 8
 
 **`--evcc-card-frame-border-width`** — Frame Border Width · default —
-- src/cards/dashboard-card.js (border)
-- src/cards/profile-card.js (border)
-- src/room-card.js (--ha-card-border-width)
+- src/cards/dashboard-card.js
+- src/cards/profile-card.js
+- src/room-card.js
 
 **`--evcc-card-frame-shadow`** — Frame Shadow · default —
-- src/cards/dashboard-card.js (box-shadow)
-- src/cards/profile-card.js (box-shadow)
-- src/room-card.js (--ha-card-box-shadow)
+- src/cards/dashboard-card.js
+- src/cards/profile-card.js
+- src/room-card.js
 
 **`--evcc-card-header-padding`** — Header Padding · default —
-- src/cards/dashboard-card.js (padding)
-- src/room-card.js (padding)
+- src/cards/dashboard-card.js
+- src/room-card.js
 
 **`--evcc-card-row-padding`** — Row Padding · default —
-- src/cards/dashboard-card.js (padding)
+- src/cards/dashboard-card.js
 
 **`--evcc-card-section-padding`** — Section Padding · default —
-- src/cards/dashboard-card.js (padding)
+- src/cards/dashboard-card.js
 
 **`--evcc-card-field-gap`** — Field Gap · default —
-- src/cards/dashboard-card.js (gap)
-- src/room-card.js (gap)
+- src/cards/dashboard-card.js
+- src/room-card.js
 
 **`--evcc-card-action-glow`** — Action Glow · default —
-- src/cards/dashboard-card.js (box-shadow)
-- src/cards/profile-card.js (box-shadow)
-- src/room-card.js (box-shadow)
+- src/cards/dashboard-card.js
+- src/cards/profile-card.js
+- src/room-card.js
 
 **`--evcc-card-font-scale`** — Font Scale · default —
 - src/cards/_shared.js
 - src/cards/dashboard-card.js
 - src/cards/profile-card.js
 - src/room-card.js
+
+## Dashboard Cards — Room  ·  6 static / 6
+
+**`--evcc-card-room-frame-border-width`** — Frame Border Width · default —
+- src/room-card.js (--frame-border-width)
+
+**`--evcc-card-room-frame-shadow`** — Frame Shadow · default —
+- src/room-card.js (--frame-shadow)
+
+**`--evcc-card-room-action-glow`** — Action Glow · default —
+- src/room-card.js (box-shadow)
+
+**`--evcc-card-room-font-scale`** — Font Scale · default —
+- src/room-card.js
+
+**`--evcc-card-room-header-padding`** — Header Padding · default —
+- src/room-card.js (padding)
+
+**`--evcc-card-room-field-gap`** — Field Gap · default —
+- src/room-card.js (gap)
+
+## Dashboard Cards — Dashboard Mode  ·  8 static / 8
+
+**`--evcc-card-dashboard-frame-border-width`** — Frame Border Width · default —
+- src/cards/dashboard-card.js (border)
+
+**`--evcc-card-dashboard-frame-shadow`** — Frame Shadow · default —
+- src/cards/dashboard-card.js (box-shadow)
+
+**`--evcc-card-dashboard-action-glow`** — Action Glow · default —
+- src/cards/dashboard-card.js (box-shadow)
+
+**`--evcc-card-dashboard-font-scale`** — Font Scale · default —
+- src/cards/dashboard-card.js
+
+**`--evcc-card-dashboard-header-padding`** — Header Padding · default —
+- src/cards/dashboard-card.js (padding)
+
+**`--evcc-card-dashboard-field-gap`** — Field Gap · default —
+- src/cards/dashboard-card.js (gap)
+
+**`--evcc-card-dashboard-row-padding`** — Row Padding · default —
+- src/cards/dashboard-card.js (padding)
+
+**`--evcc-card-dashboard-section-padding`** — Section Padding · default —
+- src/cards/dashboard-card.js (padding)
+
+## Dashboard Cards — Profile  ·  4 static / 4
+
+**`--evcc-card-profile-frame-border-width`** — Frame Border Width · default —
+- src/cards/profile-card.js (border)
+
+**`--evcc-card-profile-frame-shadow`** — Frame Shadow · default —
+- src/cards/profile-card.js (box-shadow)
+
+**`--evcc-card-profile-action-glow`** — Action Glow · default —
+- src/cards/profile-card.js (box-shadow)
+
+**`--evcc-card-profile-font-scale`** — Font Scale · default —
+- src/cards/profile-card.js
 
 ## Map  ·  22 static + 12 dynamic / 34
 

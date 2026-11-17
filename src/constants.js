@@ -49,6 +49,13 @@ export const CARD_VERSION = "1.0.6";
  *  element and render an empty preview. */
 export const ROOM_CARD_NAME = "eufy-room-card";
 
+/** The other two addable cards, here for the same reason and now a stronger one:
+ *  the theme editor's PER-CARD subgroups each preview the card they name, so the
+ *  panel creates all three by tag. Each card file imports its own name from here
+ *  rather than declaring it, so there is exactly one spelling of each. */
+export const DASHBOARD_CARD_NAME = "vacuum-agent-dashboard";
+export const PROFILE_CARD_NAME   = "vacuum-agent-profile-card";
+
 /* =========================================================
    INTEGRATION DOMAIN
    ========================================================= */
