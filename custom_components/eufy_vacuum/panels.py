@@ -32,7 +32,15 @@ WEBCOMPONENT_NAME = "eufy-vacuum-command-center"
 
 
 def panel_url_for(vacuum_entity_id: str) -> str:
-    """The frontend url path for a vacuum's panel (``eufy-vacuum-<object_id>``)."""
+    """The frontend url path for a vacuum's panel (``eufy-vacuum-<object_id>``).
+
+    anchor: RNPCW1RC  the panel url path -- the replica set
+
+    THIS IS THE PRIMARY, because this is the string Home Assistant actually registers.
+    The card editors build the same path in JavaScript to link to the panel, and the two
+    cannot be derived from one another across the language boundary. Pinned by [PNL-1],
+    which reads this f-string rather than restating it.
+    """
     object_id = vacuum_entity_id.split(".", 1)[-1]
     return f"eufy-vacuum-{object_id}"
 

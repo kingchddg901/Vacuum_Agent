@@ -439,3 +439,105 @@ export function defineCard(name, cls) {
 export const GRID_ROOM_CARD      = { columns: 12, min_columns: 3, rows: "auto" };
 export const GRID_PROFILE_CARD   = { columns: 12, min_columns: 3, rows: "auto" };
 export const GRID_DASHBOARD_CARD = { columns: 12, min_columns: 3, rows: "auto" };
+/* =========================================================
+   LINK FROM A CARD'S EDITOR TO ITS THEME PANEL
+   =========================================================
+   His ask 2026-11-16, and it is the editor-over-YAML principle again: the tokens a card
+   reads are edited in the panel's Theme tab, and nothing in the card's own config UI said
+   where that was. Someone configuring a card had to already know.
+
+   ONE IMPLEMENTATION, THREE EDITORS. The room, Dashboard Mode and Profile editors all
+   need it, and three copies of a url-builder plus three click handlers is exactly the
+   replica shape this repo keeps paying for.
+
+   THE PANEL IS PER VACUUM. panels.py registers `eufy-vacuum-<object_id>` for each managed
+   vacuum, so the link is only correct once a vacuum is chosen -- and only exists for a
+   vacuum the integration manages. Both are checked before the link renders, because a
+   button that navigates to a 404 is worse than no button.
+   ========================================================= */
+
+/**
+ * The frontend path of a vacuum's panel.
+ *
+ * REPLICA RNPCW1RC -- the primary is panels.py's `panel_url_for`, which carries the
+ * reasoning. The python builds the same string and is what Home Assistant actually
+ * registers; the two cannot be derived from one another across the language boundary.
+ * Pinned by [PNL-1], which reads the python and compares.
+ */
+export function themePanelPath(vacuumEntityId) {
+  const objectId = String(vacuumEntityId ?? "").split(".").slice(-1)[0];
+  return objectId ? `eufy-vacuum-${objectId}` : "";
+}
+
+/**
+ * The view id the panel opens on arrival.
+ *
+ * REPLICA RN91VM9P -- the primary is VIEWS.THEME in src/render-cycle.js. Not imported:
+ * this module is in the CARDS bundle, and render-cycle pulls the whole panel view
+ * machinery in behind it. Pinned by [PNL-2].
+ */
+export const THEME_VIEW_HASH = "theme";
+
+/**
+ * Markup for the link, or "" when it would not work.
+ *
+ * Returns nothing unless a vacuum is chosen AND Home Assistant actually has that panel
+ * registered. `hass.panels` is HA's own map of registered panels keyed by url path, which
+ * is the direct truth rather than an inference from room switches -- a vacuum could be
+ * mid-setup, or its panel removed, and the room switches would still be there.
+ */
+export function renderThemePanelLink({ t, hass, vacuumEntityId }) {
+  const path = themePanelPath(vacuumEntityId);
+  if (!path) return "";
+  if (!hass?.panels || !hass.panels[path]) return "";
+  return `
+      <div class="field">
+        <button type="button" class="va-theme-panel-link" data-va-theme-panel="${esc(path)}">
+          ${t("room_card.editor_open_theme_panel")}
+        </button>
+        <div class="hint">${t("room_card.editor_open_theme_panel_hint")}</div>
+      </div>`;
+}
+
+/** CSS for the link. Kept beside the markup so a copy cannot drift from a copy. */
+export const THEME_PANEL_LINK_CSS = `
+  .va-theme-panel-link {
+    width: 100%;
+    padding: 8px 10px;
+    cursor: pointer;
+    border: 1px solid var(--divider-color, rgba(255,255,255,0.12));
+    border-radius: 6px;
+    background: var(--secondary-background-color, #282828);
+    color: var(--primary-text-color, #f0f2f5);
+    font-size: 0.9rem;
+    text-align: start;
+  }
+  .va-theme-panel-link:hover { border-color: var(--primary-color, #3b82f6); }
+`;
+
+/**
+ * Wire the link. Navigates the Home Assistant way -- pushState plus a `location-changed`
+ * event -- rather than setting location.href, which would reload the whole frontend.
+ *
+ * NOTE this leaves the card-edit dialog, because navigating does. That is the honest
+ * behaviour for a link that says it opens another page, and it is why the button sits
+ * under its own hint rather than beside a field someone is mid-edit in.
+ */
+export function wireThemePanelLink(shadowRoot) {
+  const btn = shadowRoot?.querySelector("[data-va-theme-panel]");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    const path = btn.dataset.vaThemePanel;
+    if (!path) return;
+    const url = `/${path}#${THEME_VIEW_HASH}`;
+    try {
+      window.history.pushState(null, "", url);
+      window.dispatchEvent(new CustomEvent("location-changed", {
+        bubbles: true, composed: true, detail: { replace: false },
+      }));
+    } catch (_) {
+      // A frontend that refuses pushState still gets the user there.
+      window.location.assign(url);
+    }
+  });
+}

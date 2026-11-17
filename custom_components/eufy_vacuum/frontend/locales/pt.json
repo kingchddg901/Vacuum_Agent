@@ -1151,6 +1151,8 @@
     "editor_name_override_label": "Substituir nome",
     "editor_name_placeholder": "Deixe em branco para usar o nome da divisão",
     "editor_no_room_switches": "Não foram encontrados interruptores de divisão para {vacuum}.",
+    "editor_open_theme_panel": "Abrir o editor de tema",
+    "editor_open_theme_panel_hint": "O separador Tema do painel, onde se definem as cores, espaçamentos e sombras deste cartão. Abri-lo sai desta caixa de diálogo.",
     "editor_optional": "(opcional)",
     "editor_pick_room": "— escolher uma divisão —",
     "editor_pick_vacuum": "— escolher um aspirador —",

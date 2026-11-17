@@ -22,7 +22,7 @@ import { foundationTokens } from "../styles/foundation.js";
 import { applyVaThemeToCard } from "../styles/card-theme.js";
 import {
   esc, callResponse, defineCard, registerCard, getStoredLang, setStoredLang,
-  renderLangControl, wireLangControl, LANG_CSS, vocab, roomSwitchesFor, GRID_PROFILE_CARD } from "./_shared.js";
+  renderThemePanelLink, wireThemePanelLink, THEME_PANEL_LINK_CSS, renderLangControl, wireLangControl, LANG_CSS, vocab, roomSwitchesFor, GRID_PROFILE_CARD } from "./_shared.js";
 import { dashboardSuggestion } from "./card-suggestions.js";
 import { renderStepsManifest } from "../state/steps-manifest.js";
 
@@ -474,6 +474,7 @@ class VacuumAgentProfileCardEditor extends HTMLElement {
         }
         select[disabled] { opacity: 0.6; }
         .hint { font-size: 0.75rem; color: var(--secondary-text-color, #888); margin-top: 2px; }
+        ${THEME_PANEL_LINK_CSS}
       </style>
 
       <div class="field">
@@ -505,7 +506,20 @@ class VacuumAgentProfileCardEditor extends HTMLElement {
         </label>
         <div class="hint">${this.t("room_card.editor_va_theme_hint")}</div>
       </div>
+
+      ${/* His ask 2026-11-16: the tokens this card reads are edited in the panel's Theme
+           tab, and nothing here said where that was. Renders ONLY when a vacuum is chosen
+           and Home Assistant actually has that panel registered -- a button that navigates
+           to a 404 is worse than no button. One implementation in cards/_shared.js; all
+           three editors call it. */""}
+      ${renderThemePanelLink({
+        t: (k) => this.t(k),
+        hass: this._hass,
+        vacuumEntityId: this._config?.vacuum_entity_id,
+      })}
     `;
+
+    wireThemePanelLink(this.shadowRoot);
 
     this.shadowRoot.getElementById("vacuum")?.addEventListener("change", (e) => {
       this._fire({ ...this._config, vacuum_entity_id: e.target.value, map_id: "", profile_id: "" });

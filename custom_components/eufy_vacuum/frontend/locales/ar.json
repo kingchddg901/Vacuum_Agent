@@ -1770,6 +1770,8 @@
     "editor_name_override_label": "تجاوز الاسم",
     "editor_name_placeholder": "اتركه فارغًا لاستخدام اسم الغرفة",
     "editor_no_room_switches": "لم يتم العثور على مفاتيح غرف لـ {vacuum}.",
+    "editor_open_theme_panel": "فتح محرّر السمة",
+    "editor_open_theme_panel_hint": "علامة تبويب السمة في اللوحة، حيث تُضبط ألوان هذه البطاقة ومسافاتها وظلالها. فتحها يغلق هذا الحوار.",
     "editor_optional": "(اختياري)",
     "editor_pick_room": "— اختر غرفة —",
     "editor_pick_vacuum": "— اختر مكنسة —",

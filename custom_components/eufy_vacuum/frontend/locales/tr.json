@@ -2518,6 +2518,8 @@
     "editor_name_override_label": "Ad geçersiz kılma",
     "editor_name_placeholder": "Oda adını kullanmak için boş bırakın",
     "editor_no_room_switches": "{vacuum} için oda anahtarı bulunamadı.",
+    "editor_open_theme_panel": "Tema düzenleyicisini aç",
+    "editor_open_theme_panel_hint": "Panelin Tema sekmesi; bu kartın renkleri, boşlukları ve gölgeleri orada ayarlanır. Açmak bu iletişim kutusundan çıkar.",
     "editor_optional": "(isteğe bağlı)",
     "editor_pick_room": "— bir oda seçin —",
     "editor_pick_vacuum": "— bir robot süpürge seçin —",

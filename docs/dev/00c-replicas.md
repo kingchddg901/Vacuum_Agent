@@ -1372,6 +1372,43 @@ never saw it.*
 
 ---
 
+### `RNPCW1RC` — the panel url path · **2 copies, across the language boundary**
+
+The panel is registered **per vacuum** at `eufy-vacuum-<object_id>`. Python builds that
+string because Python is what registers it with Home Assistant; JavaScript has to build the
+same string because the card editors link to it.
+
+| Copy | Why it cannot be the other |
+|---|---|
+| `panels.py` `panel_url_for` — **the primary** | it is what `async_register_panel` is actually given, so it is the truth |
+| `src/cards/_shared.js` `themePanelPath` | runs in the browser, in the cards bundle, with no access to the Python |
+
+Nothing can derive one from the other at runtime, so `[PNL-1]` **reads the f-string out of
+`panels.py`** and compares, rather than restating `eufy-vacuum-` a third time in a test.
+A drift is silent and looks exactly like success: the button renders, it navigates, and it
+lands on Home Assistant's "panel not found".
+
+---
+
+### `RN91VM9P` — the Theme view id · **2 copies, one bundle boundary**
+
+The card editors' link carries `#theme`, and the panel routes that hash through `setView`,
+which accepts only a value from `VIEWS`.
+
+| Copy | Why it cannot be the other |
+|---|---|
+| `src/render-cycle.js` `VIEWS.THEME` — **the primary** | `setView` validates against this object |
+| `src/cards/_shared.js` `THEME_VIEW_HASH` | the CARDS bundle cannot import `render-cycle.js` — it drags the whole panel view machinery in behind it |
+
+This is the bundle-boundary case the register already has several of: an import would be
+correct and would cost the cards bundle the panel. `[PNL-2]` reads `render-cycle.js`.
+
+**The failure is quieter than the url one.** A wrong url 404s visibly; a wrong *view id* is
+simply not in `VIEWS`, so `_consumeViewHash` ignores it and the panel opens on whatever tab
+was remembered — which looks like the link working.
+
+---
+
 ### `RNTA1EGS` — the mask canvas, 2048 · **4 copies, 2 of them gates**
 
 | Site | Kind |

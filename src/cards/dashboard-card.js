@@ -15,7 +15,7 @@ import {
   translate, resolveLang, ensureLocalesLoaded, applyDir,
   esc, vocab, roomSwitchesFor, adapterOptions, adapterRange, committedRoomFields, isMopMode,
   chipRow, sliderRow, SLIDER_ROW_CSS, callResponse, registerCard, defineCard, stripNull,
-  renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang, GRID_DASHBOARD_CARD } from "./_shared.js";
+  renderThemePanelLink, wireThemePanelLink, THEME_PANEL_LINK_CSS, renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang, GRID_DASHBOARD_CARD } from "./_shared.js";
 // ISSUE #65 -- this card owns its CSS and shipped with NO --evcc-* defined, so every
 // evcc token reference in it fell through to its white-alpha fallback and the card rendered
 // invisible on a light HA theme. Same gap as the standalone map embed, same repair:
@@ -92,6 +92,7 @@ class EufyDashboardCardEditor extends HTMLElement {
            it does not need a hint line of its own. */
         .toggle.sub { margin-inline-start: 22px; }
         .hint { font-size: 0.75rem; color: var(--secondary-text-color, #888); margin-top: 2px; }
+        ${THEME_PANEL_LINK_CSS}
       </style>
 
       <div class="field">
@@ -126,7 +127,20 @@ class EufyDashboardCardEditor extends HTMLElement {
         </label>
         <div class="hint">${this.t("room_card.editor_va_theme_hint")}</div>
       </div>
+
+      ${/* His ask 2026-11-16: the tokens this card reads are edited in the panel's Theme
+           tab, and nothing here said where that was. Renders ONLY when a vacuum is chosen
+           and Home Assistant actually has that panel registered -- a button that navigates
+           to a 404 is worse than no button. One implementation in cards/_shared.js; all
+           three editors call it. */""}
+      ${renderThemePanelLink({
+        t: (k) => this.t(k),
+        hass: this._hass,
+        vacuumEntityId: this._config?.vacuum_entity_id,
+      })}
     `;
+
+    wireThemePanelLink(this.shadowRoot);
 
     this.shadowRoot.getElementById("vacuum")?.addEventListener("change", (e) => {
       this._fire({ ...this._config, vacuum_entity_id: e.target.value });

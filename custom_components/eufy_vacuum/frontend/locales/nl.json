@@ -1139,6 +1139,8 @@
     "editor_name_override_label": "Naam overschrijven",
     "editor_name_placeholder": "Laat leeg om de kamernaam te gebruiken",
     "editor_no_room_switches": "Geen kamerschakelaars gevonden voor {vacuum}.",
+    "editor_open_theme_panel": "Thema-editor openen",
+    "editor_open_theme_panel_hint": "Het Thema-tabblad van het paneel, waar kleuren, afstanden en schaduwen van deze kaart worden ingesteld. Openen verlaat dit dialoogvenster.",
     "editor_optional": "(optioneel)",
     "editor_pick_room": "— kies een kamer —",
     "editor_pick_vacuum": "— kies een stofzuiger —",

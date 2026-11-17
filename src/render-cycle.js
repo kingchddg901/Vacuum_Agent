@@ -13,6 +13,11 @@ export const VIEWS = {
   METRICS:         "metrics",
   LEARNING_REVIEW: "learning_review",
   ROOM_RULES:      "room_rules",
+  // anchor: RN91VM9P  the Theme view id -- the replica set
+  // PRIMARY: setView() accepts only a value from this object, so this is what a deep
+  // link has to match. cards/_shared.js carries the twin as THEME_VIEW_HASH -- it cannot
+  // import this file, which drags the whole panel view machinery into the cards bundle.
+  // Pinned by [PNL-2].
   THEME:           "theme",
   MAPPING_ARCHIVE: "mapping",
   MAP_CONFIG:      "map_config",

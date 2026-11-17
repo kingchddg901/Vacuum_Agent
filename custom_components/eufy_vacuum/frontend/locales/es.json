@@ -1151,6 +1151,8 @@
     "editor_name_override_label": "Nombre personalizado",
     "editor_name_placeholder": "Déjalo en blanco para usar el nombre de la habitación",
     "editor_no_room_switches": "No se encontraron interruptores de habitación para {vacuum}.",
+    "editor_open_theme_panel": "Abrir el editor de temas",
+    "editor_open_theme_panel_hint": "La pestaña Tema del panel, donde se definen los colores, espaciados y sombras de esta tarjeta. Al abrirla saldrás de este diálogo.",
     "editor_optional": "(opcional)",
     "editor_pick_room": "— elige una habitación —",
     "editor_pick_vacuum": "— elige un aspirador —",

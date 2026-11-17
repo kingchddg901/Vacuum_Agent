@@ -1735,6 +1735,8 @@
     "editor_name_override_label": "名前の上書き",
     "editor_name_placeholder": "空欄の場合は部屋名を使用します",
     "editor_no_room_switches": "{vacuum}の部屋スイッチが見つかりません。",
+    "editor_open_theme_panel": "テーマエディターを開く",
+    "editor_open_theme_panel_hint": "パネルのテーマタブです。このカードの色・余白・影はそこで設定します。開くとこのダイアログは閉じます。",
     "editor_optional": "（任意）",
     "editor_pick_room": "— 部屋を選択 —",
     "editor_pick_vacuum": "— ロボット掃除機を選択 —",

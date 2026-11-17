@@ -1735,6 +1735,8 @@
     "editor_name_override_label": "名稱覆寫",
     "editor_name_placeholder": "留空以使用房間名稱",
     "editor_no_room_switches": "找不到 {vacuum} 的房間開關。",
+    "editor_open_theme_panel": "開啟佈景主題編輯器",
+    "editor_open_theme_panel_hint": "面板的佈景主題分頁，此卡片的顏色、間距與陰影在那裡設定。開啟會離開此對話方塊。",
     "editor_optional": "（選填）",
     "editor_pick_room": "— 選擇房間 —",
     "editor_pick_vacuum": "— 選擇吸塵器 —",

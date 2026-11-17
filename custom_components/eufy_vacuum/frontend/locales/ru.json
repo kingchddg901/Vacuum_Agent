@@ -1209,6 +1209,8 @@
     "editor_name_override_label": "Переопределение названия",
     "editor_name_placeholder": "Оставьте пустым, чтобы использовать название комнаты",
     "editor_no_room_switches": "Не найдены переключатели комнат для {vacuum}.",
+    "editor_open_theme_panel": "Открыть редактор темы",
+    "editor_open_theme_panel_hint": "Вкладка «Тема» на панели, где задаются цвета, отступы и тени этой карточки. Открытие закроет это окно.",
     "editor_optional": "(необязательно)",
     "editor_pick_room": "— выберите комнату —",
     "editor_pick_vacuum": "— выберите пылесос —",

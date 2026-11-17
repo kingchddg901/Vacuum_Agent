@@ -1139,6 +1139,8 @@
     "editor_name_override_label": "Namensüberschreibung",
     "editor_name_placeholder": "Leer lassen, um den Raumnamen zu verwenden",
     "editor_no_room_switches": "Keine Raumschalter für {vacuum} gefunden.",
+    "editor_open_theme_panel": "Theme-Editor öffnen",
+    "editor_open_theme_panel_hint": "Der Theme-Tab des Panels, in dem Farben, Abstände und Schatten dieser Karte festgelegt werden. Beim Öffnen wird dieser Dialog verlassen.",
     "editor_optional": "(optional)",
     "editor_pick_room": "— Raum auswählen —",
     "editor_pick_vacuum": "— Saugroboter auswählen —",

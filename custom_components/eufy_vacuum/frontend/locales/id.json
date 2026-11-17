@@ -2518,6 +2518,8 @@
     "editor_name_override_label": "Penimpaan nama",
     "editor_name_placeholder": "Biarkan kosong untuk menggunakan nama ruangan",
     "editor_no_room_switches": "Tidak ada sakelar ruangan yang ditemukan untuk {vacuum}.",
+    "editor_open_theme_panel": "Buka editor tema",
+    "editor_open_theme_panel_hint": "Tab Tema di panel, tempat warna, jarak, dan bayangan kartu ini diatur. Membukanya akan meninggalkan dialog ini.",
     "editor_optional": "(opsional)",
     "editor_pick_room": "— pilih ruangan —",
     "editor_pick_vacuum": "— pilih penyedot debu —",

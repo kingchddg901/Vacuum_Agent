@@ -1304,6 +1304,8 @@ export const en = {
   "room_card.editor_name_override_label": "Name override",
   "room_card.editor_name_placeholder": "Leave blank to use room name",
   "room_card.editor_no_room_switches": "No room switches found for {vacuum}.",  // Error: no per-room HA switch.* entities for {vacuum}; 'switches'=entities, not light switches
+  "room_card.editor_open_theme_panel": "Open the theme editor",  // Button in all three card editors. Opens the Vacuum Agent panel's Theme tab for THIS card's vacuum (the panel is per vacuum). Shown only when that panel is registered.
+  "room_card.editor_open_theme_panel_hint": "The panel's Theme tab, where this card's colours, spacing and shadows are set. Opening it leaves this dialog.",  // Hint under the button. The last clause is a warning, not a flourish: navigating closes the card-edit dialog, so unsaved card config is lost.
   "room_card.editor_optional": "(optional)",
   "room_card.editor_pick_room": "— pick a room —",
   "room_card.editor_pick_vacuum": "— pick a vacuum —",

@@ -2520,6 +2520,8 @@
     "editor_name_override_label": "Přepsání názvu",
     "editor_name_placeholder": "Ponechte prázdné pro použití názvu místnosti",
     "editor_no_room_switches": "Pro {vacuum} nebyly nalezeny žádné přepínače místností.",
+    "editor_open_theme_panel": "Otevřít editor motivu",
+    "editor_open_theme_panel_hint": "Karta Motiv v panelu, kde se nastavují barvy, mezery a stíny této karty. Otevřením opustíte tento dialog.",
     "editor_optional": "(volitelné)",
     "editor_pick_room": "— vyberte místnost —",
     "editor_pick_vacuum": "— vyberte vysavač —",

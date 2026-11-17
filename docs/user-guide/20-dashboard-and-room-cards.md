@@ -156,6 +156,16 @@ don't carry one). A few things you can do with it:
     but shared between the panel and the card (they're stored per vacuum and map, not per
     view).
 
+## Finding the theme editor from a card
+
+Each card's editor has an **Open the theme editor** button. It takes you to that vacuum's
+Vacuum Agent panel, straight to the **Theme** tab, where the colours, spacing and shadows
+the card reads are set.
+
+The panel is per vacuum, so the button only appears once you have chosen one — and only
+when that vacuum actually has a panel. Opening it leaves the card-edit dialog, so save any
+card changes first.
+
 ## Styling the cards from a Home Assistant theme
 
 The cards already follow your Home Assistant theme. They don't carry a fixed palette — they

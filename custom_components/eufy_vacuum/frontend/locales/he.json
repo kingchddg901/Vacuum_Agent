@@ -1756,6 +1756,8 @@
     "editor_name_override_label": "עקיפת שם",
     "editor_name_placeholder": "השאר ריק כדי להשתמש בשם החדר",
     "editor_no_room_switches": "לא נמצאו מתגי חדר עבור {vacuum}.",
+    "editor_open_theme_panel": "פתח את עורך ערכת הנושא",
+    "editor_open_theme_panel_hint": "לשונית ערכת הנושא בלוח, שבה נקבעים הצבעים, הריווח והצללים של הכרטיס הזה. פתיחתה תסגור את החלון הזה.",
     "editor_optional": "(אופציונלי)",
     "editor_pick_room": "— בחר חדר —",
     "editor_pick_vacuum": "— בחר שואב —",

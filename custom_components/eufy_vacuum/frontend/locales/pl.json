@@ -2521,6 +2521,8 @@
     "editor_name_override_label": "Zastąpienie nazwy",
     "editor_name_placeholder": "Pozostaw puste, aby użyć nazwy pokoju",
     "editor_no_room_switches": "Nie znaleziono przełączników pokoi dla {vacuum}.",
+    "editor_open_theme_panel": "Otwórz edytor motywu",
+    "editor_open_theme_panel_hint": "Zakładka Motyw w panelu, gdzie ustawia się kolory, odstępy i cienie tej karty. Otwarcie opuszcza to okno.",
     "editor_optional": "(opcjonalne)",
     "editor_pick_room": "— wybierz pokój —",
     "editor_pick_vacuum": "— wybierz odkurzacz —",

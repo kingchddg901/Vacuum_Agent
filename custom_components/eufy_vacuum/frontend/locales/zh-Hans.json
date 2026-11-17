@@ -1735,6 +1735,8 @@
     "editor_name_override_label": "名称覆盖",
     "editor_name_placeholder": "留空则使用房间名称",
     "editor_no_room_switches": "未找到 {vacuum} 的房间开关。",
+    "editor_open_theme_panel": "打开主题编辑器",
+    "editor_open_theme_panel_hint": "面板的主题标签页，此卡片的颜色、间距和阴影在那里设置。打开会离开此对话框。",
     "editor_optional": "（可选）",
     "editor_pick_room": "— 选择房间 —",
     "editor_pick_vacuum": "— 选择扫地机器人 —",

@@ -1151,6 +1151,8 @@
     "editor_name_override_label": "Remplacement du nom",
     "editor_name_placeholder": "Laissez vide pour utiliser le nom de la pièce",
     "editor_no_room_switches": "Aucun interrupteur de pièce trouvé pour {vacuum}.",
+    "editor_open_theme_panel": "Ouvrir l'éditeur de thème",
+    "editor_open_theme_panel_hint": "L'onglet Thème du panneau, où se règlent les couleurs, espacements et ombres de cette carte. L'ouvrir ferme cette boîte de dialogue.",
     "editor_optional": "(facultatif)",
     "editor_pick_room": "— choisir une pièce —",
     "editor_pick_vacuum": "— choisir un aspirateur —",

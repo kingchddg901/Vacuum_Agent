@@ -9,7 +9,7 @@ import { foundationTokens } from "./styles/foundation.js";
 import {
   esc, vocab, roomSwitchesFor, adapterOptions, adapterRange, sliderRow, SLIDER_ROW_CSS, committedRoomFields, isMopMode, canonicalCleanMode, stripNull, defineCard,
   renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang, GRID_ROOM_CARD,
-  registerCard } from "./cards/_shared.js";
+  renderThemePanelLink, wireThemePanelLink, THEME_PANEL_LINK_CSS, registerCard } from "./cards/_shared.js";
 import { roomSuggestion } from "./cards/card-suggestions.js";
 // Opt-in VA theming. From styles/card-theme.js, which reaches the token writer through
 // styles/apply-tokens.js rather than styles/index.js -- the latter imports every
@@ -111,6 +111,7 @@ class EufyRoomCardEditor extends HTMLElement {
         }
         select:focus, input:focus { outline: none; border-color: var(--primary-color, #3b82f6); }
         .hint  { font-size: 0.75rem; color: var(--secondary-text-color, #888); margin-top: 2px; }
+        ${THEME_PANEL_LINK_CSS}
         .no-rooms {
           font-size: 0.85rem; color: var(--warning-color, #f59e0b);
           padding: 8px 10px; border: 1px solid currentColor; border-radius: 6px; opacity: 0.8;
@@ -150,7 +151,20 @@ class EufyRoomCardEditor extends HTMLElement {
         </label>
         <div class="hint">${this.t("room_card.editor_va_theme_hint")}</div>
       </div>
+
+      ${/* His ask 2026-11-16: the tokens this card reads are edited in the panel's Theme
+           tab, and nothing here said where that was. Renders ONLY when a vacuum is chosen
+           and Home Assistant actually has that panel registered -- a button that navigates
+           to a 404 is worse than no button. One implementation in cards/_shared.js; all
+           three editors call it. */""}
+      ${renderThemePanelLink({
+        t: (k) => this.t(k),
+        hass: this._hass,
+        vacuumEntityId: this._config?.vacuum_entity_id,
+      })}
     `;
+
+    wireThemePanelLink(this.shadowRoot);
 
     this.shadowRoot.getElementById("vacuum")?.addEventListener("change", (e) => {
       this._fire({ ...this._config, vacuum_entity_id: e.target.value, room_id: undefined });

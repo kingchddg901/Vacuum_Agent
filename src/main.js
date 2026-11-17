@@ -979,8 +979,44 @@ class EufyVacuumCommandCenter extends HTMLElement {
    * Idempotent — flips `_viewRestored` so subsequent renders don't
    * re-apply the stored value over a user-driven switch.
    */
+  /**
+   * A `#<view>` in the url opens that tab, ONCE, and beats the remembered one.
+   *
+   * This is what the card editors' "open the theme panel" button links to -- the panel is
+   * per vacuum, so the link already names the right panel, and the hash names the tab.
+   *
+   * CONSUMED WITH replaceState, deliberately: no history entry (Back should go where the
+   * user came from, not re-trigger the jump) and no navigation event (pushState here
+   * would re-enter _handlePanelResume and loop). It also means a later refresh behaves
+   * normally instead of snapping back to the linked tab forever.
+   *
+   * ROUTED THROUGH setView, not `_view =`, so the deep link cannot reach a tab the user
+   * could not click to: setView reroutes the legacy Mapping view and refuses a
+   * capability-gated tab the adapter does not offer. A url is user input.
+   */
+  _consumeViewHash() {
+    let hash = "";
+    try {
+      hash = String(window.location.hash || "").replace(/^#/, "");
+    } catch (_) {
+      return false;
+    }
+    if (!hash || !Object.values(VIEWS).includes(hash)) return false;
+    try {
+      window.history.replaceState(
+        null, "", window.location.pathname + window.location.search,
+      );
+    } catch (_) { /* a frontend that refuses it just keeps the hash; harmless */ }
+    // The hash IS the restore. Without this the stored tab would win on the next sync.
+    this._viewRestored = true;
+    this.setView(hash);
+    return true;
+  }
+
   _restoreLastView() {
     if (this._viewRestored) return;
+    // A url the user followed outranks the tab they were last on.
+    if (this._consumeViewHash()) return;
     this._viewRestored = true;
 
     let stored;
@@ -2469,6 +2505,9 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // fixing GPU blackout after aggressive background throttling (Windows sleep,
     // Chrome sleeping tabs).
     void this.offsetHeight;
+    // An IN-APP navigation lands here rather than in _restoreLastView, which is one-shot
+    // and has already run. Without this the button would reach the panel and not the tab.
+    this._consumeViewHash();
     this._scheduleRender();
     this._scheduleDashboardSnapshotRefresh();
     this._scheduleStartStatusRefresh();

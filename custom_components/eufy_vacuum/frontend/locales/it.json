@@ -1141,6 +1141,8 @@
     "editor_name_override_label": "Sostituzione nome",
     "editor_name_placeholder": "Lascia vuoto per usare il nome della stanza",
     "editor_no_room_switches": "Nessun interruttore di stanza trovato per {vacuum}.",
+    "editor_open_theme_panel": "Apri l'editor del tema",
+    "editor_open_theme_panel_hint": "La scheda Tema del pannello, dove si impostano colori, spaziature e ombre di questa scheda. Aprirla chiude questa finestra.",
     "editor_optional": "(facoltativo)",
     "editor_pick_room": "— scegli una stanza —",
     "editor_pick_vacuum": "— scegli un aspirapolvere —",
