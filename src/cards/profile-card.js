@@ -55,9 +55,11 @@ const CARD_CSS = `
      them in YAML inherits in and wins, exactly as --evcc-surface-card-override does. */
   .evcc-pcard {
     background: var(--surface);
-    border: var(--evcc-card-frame-border-width, 1px) solid var(--border);
+    /* ISSUE #83 second pass -- VA token, then an HA theme's value, then our literal.
+       Plain div, no --ha-card-* declared here, so no cycle. */
+    border: var(--evcc-card-frame-border-width, var(--ha-card-border-width, 1px)) solid var(--border);
     border-radius: var(--radius);
-    box-shadow: var(--evcc-card-frame-shadow, none);
+    box-shadow: var(--evcc-card-frame-shadow, var(--ha-card-box-shadow, none));
     padding: 16px;
     color: var(--text-primary);
   }

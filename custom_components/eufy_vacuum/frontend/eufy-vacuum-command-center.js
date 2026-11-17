@@ -20602,9 +20602,34 @@ ${na}
              plain div and so spell the same rule as ordinary properties. Primary and
              reasoning: src/theme-tokens/cards.js. */
           --ha-card-background:    var(--surface);
-          --ha-card-border-width:  var(--evcc-card-frame-border-width, 1px);
           --ha-card-border-color:  var(--border);
-          --ha-card-box-shadow:    var(--evcc-card-frame-shadow, none);
+
+          /* ISSUE #83, SECOND PASS -- RESOLVE HERE, APPLY ON THE CHILD.
+             The first pass declared --ha-card-border-width and --ha-card-box-shadow on
+             THIS element, driven from the evcc tokens. That made the VA theme work and
+             silently closed the HA one: a value an element declares always beats one it
+             inherits, so the reporter's own ha-card-border-width: "0px" was shadowed
+             before it ever arrived. Telling him to use a different name instead was a
+             workaround, not a fix.
+             Adding the inherited value as a fallback IN PLACE is not available -- that
+             is a self-reference, and CSS discards a cycle WHOLE, which is the defect
+             the border-radius note below records.
+             So: resolve on :host, where these two names are NOT declared and var()
+             therefore reads what an HA theme put on <html>; then declare them on the
+             ha-card ELEMENT (see the ha-card rule), where the intermediate has already
+             computed to a plain value and nothing refers to itself. Custom properties
+             inherit their COMPUTED value, which is what makes the two steps safe.
+             MEASURED IN CHROMIUM, four paths (the same table the radius repair used):
+               neither set      -> 1px / none
+               HA theme only    -> the theme's value   (was 1px / none -- the defect)
+               VA token only    -> the token
+               both set         -> the VA token wins, which is the right precedence:
+                                   a VA theme is opt-in and more specific than HA's.
+             NB: no backticks in here -- this block lives in a JS template. */
+          --frame-border-width: var(--evcc-card-frame-border-width,
+                                    var(--ha-card-border-width, 1px));
+          --frame-shadow:       var(--evcc-card-frame-shadow,
+                                    var(--ha-card-box-shadow, none));
 
           /* NB: --ha-card-border-radius is deliberately NOT declared here. It used to
              be, as var(--radius), and that closed a three-property CYCLE:
@@ -20635,6 +20660,15 @@ ${na}
              see the cycle note above for why this is a property and not a variable. */
           overflow: hidden;
           border-radius: var(--radius);
+          /* THE APPLY HALF of the resolve-here-apply-on-the-child pair above. Declaring
+             these on the ha-card element rather than on :host is the whole repair: the
+             intermediates already computed on :host, so there is no self-reference, and
+             ha-card's own shadow DOM inherits from this element. These two variables are
+             the ONLY lever into ha-card's internals -- it styles its inner surface from
+             them -- so setting border-width/box-shadow as properties here would not
+             reach it. */
+          --ha-card-border-width: var(--frame-border-width);
+          --ha-card-box-shadow:   var(--frame-shadow);
         }
 
         /* ---- header ---- */
@@ -21086,7 +21120,10 @@ ${na}
   }
   /* REPLICA RNA0TM68 -- the card FRAME. Twins: src/room-card.js (as --ha-card-*) and
      src/cards/profile-card.js (.evcc-pcard). See src/theme-tokens/cards.js. */
-  .card { background: var(--surface); border: var(--evcc-card-frame-border-width, 1px) solid var(--border); border-radius: var(--radius); box-shadow: var(--evcc-card-frame-shadow, none); overflow: hidden; max-width: 480px; }
+  /* ISSUE #83 second pass -- the HA name is the MIDDLE fallback: VA token, then whatever
+     an HA theme set, then our literal. This card frames with a plain div and never
+     declares --ha-card-*, so unlike the room card there is no cycle to route around. */
+  .card { background: var(--surface); border: var(--evcc-card-frame-border-width, var(--ha-card-border-width, 1px)) solid var(--border); border-radius: var(--radius); box-shadow: var(--evcc-card-frame-shadow, var(--ha-card-box-shadow, none)); overflow: hidden; max-width: 480px; }
 
   .header { display: flex; align-items: baseline; gap: 10px; padding: var(--evcc-card-header-padding, var(--evcc-card-padding, 14px 16px 10px)); flex-wrap: wrap; }
   .header .va-lang { margin-inline-start: auto; align-self: center; }
@@ -21259,9 +21296,11 @@ ${na}
      them in YAML inherits in and wins, exactly as --evcc-surface-card-override does. */
   .evcc-pcard {
     background: var(--surface);
-    border: var(--evcc-card-frame-border-width, 1px) solid var(--border);
+    /* ISSUE #83 second pass -- VA token, then an HA theme's value, then our literal.
+       Plain div, no --ha-card-* declared here, so no cycle. */
+    border: var(--evcc-card-frame-border-width, var(--ha-card-border-width, 1px)) solid var(--border);
     border-radius: var(--radius);
-    box-shadow: var(--evcc-card-frame-shadow, none);
+    box-shadow: var(--evcc-card-frame-shadow, var(--ha-card-box-shadow, none));
     padding: 16px;
     color: var(--text-primary);
   }

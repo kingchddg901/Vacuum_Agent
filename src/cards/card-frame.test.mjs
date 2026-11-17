@@ -43,6 +43,9 @@
 // [CFR-5] both frame tokens are in the registry — required by two separate mechanisms
 // [CFR-6] the border-width token declares an explicit range, not an inherited one
 // [CFR-7] room-card registers idempotently and asks for a picker preview
+// [CFR-8] room-card's :host does NOT declare --ha-card-border-width / -box-shadow
+// [CFR-9] it declares them on the ha-card ELEMENT, from the :host intermediates
+// [CFR-10] all three cards take an HA theme's value as the MIDDLE fallback
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -279,4 +282,90 @@ test("[CFR-7] room-card registers idempotently and asks for a preview", () => {
   assert.match(m[1], /preview\s*:\s*true/,
     "preview: true asks HA to render the card in its own picker — the one card preview " +
     "that already ships, and it was switched off for this card alone");
+});
+
+/* ========================================================================== *
+ * [CFR-8..10] THE HA NAMES REACH THE CARD TOO — issue #83, second pass
+ * ========================================================================== *
+ * THE FIRST PASS WAS A HALF FIX AND SHIPPED AS ONE. The reporter asked for
+ * `ha-card-border-width: "0px"` and `ha-card-box-shadow: ...` in his Home Assistant
+ * theme. He got VA-named tokens that do the same job, and his own two lines still did
+ * nothing — on the room card because :host DECLARED those two names (a declared value
+ * always beats an inherited one, so his was shadowed before it arrived), and on the
+ * other two because they frame with a plain div that never read the HA name at all.
+ *
+ * The repair is the same shape as the radius one above, inverted: RESOLVE on :host,
+ * where the two names are NOT declared and var() therefore sees what the theme set, and
+ * APPLY on the ha-card element, where the intermediate has already computed to a plain
+ * value so nothing refers to itself. Custom properties inherit their COMPUTED value,
+ * which is what makes two steps legal where one is a cycle.
+ *
+ * MEASURED IN CHROMIUM against the built bundle, four paths x three cards:
+ *
+ *                       room card        dashboard / profile
+ *   neither set         1px / none       1px / none
+ *   HA theme only       0px / glow       0px / glow        <- was 1px / none, the defect
+ *   VA token only       3px / VA         3px / VA
+ *   both set            3px (VA wins)    3px (VA wins)
+ *
+ * VA winning when both are set is the deliberate precedence: a VA theme is opt-in and
+ * more specific than the HA theme the card falls back to.
+ */
+
+test("[CFR-8] each --ha-card-* frame name is declared EXACTLY ONCE, at the apply site", () => {
+  // THE RED INPUT, and it is exactly what shipped: add either declaration back onto
+  // :host. The VA token keeps working and every other test here stays green, while the
+  // reporter's theme silently stops reaching the card.
+  //
+  // THIS IS A FILE-WIDE COUNT, NOT A :host-BLOCK SCAN, and the first version of it was
+  // the block scan. room-card.js has TWO :host blocks -- a one-line one at the top of
+  // the chrome styles and the card's own -- and a lazy `:host\s*\{[\s\S]*?\}` matches
+  // the one-liner, captures nothing, and passes whatever you do to the real block. An
+  // ablation that re-declared the name on :host reddened NOTHING. That is the same trap
+  // [CFR-1] records being caught by, in this same file, which is why both are now
+  // file-wide: a count cannot be fooled by which block it found.
+  for (const name of ["--ha-card-border-width", "--ha-card-box-shadow"]) {
+    const decls = [...ROOM.matchAll(new RegExp(`${name}\s*:\s*([^;]+);`, "g"))]
+      .map((m) => m[1].trim().replace(/\s+/g, " "));
+    assert.equal(decls.length, 1,
+      `${name} must be declared exactly once and only at the apply site. Found ` +
+      `${decls.length}: ${JSON.stringify(decls)}. A second declaration on :host shadows ` +
+      "the value an HA theme set, before the card can read it — the #83 defect.");
+    assert.match(decls[0], /^var\(--frame-(border-width|shadow)\)$/,
+      `${name} must be declared from the :host intermediate, not straight from the VA ` +
+      `token — reading the token here loses the HA middle rung. Got: ${decls[0]}`);
+  }
+});
+
+test("[CFR-9] it declares them on the ha-card ELEMENT, from the :host intermediates", () => {
+  // The other half. [CFR-8] alone is satisfied by simply deleting the declarations,
+  // which would hand the frame to the HA theme and break the VA token — so this pins
+  // that the apply step exists and reads the resolved intermediate rather than
+  // re-reading the --ha-card-* name (which on that element IS declared, i.e. a cycle).
+  const rule = ROOM.match(/\n\s*ha-card\s*\{[\s\S]*?\n\s*\}/);
+  assert.ok(rule, "could not find room-card's ha-card element rule");
+  assert.match(rule[0], /--ha-card-border-width:\s*var\(--frame-border-width\)/);
+  assert.match(rule[0], /--ha-card-box-shadow:\s*var\(--frame-shadow\)/);
+
+  // And the intermediates must resolve VA-first, HA-second, literal-last.
+  assert.match(ROOM,
+    /--frame-border-width:\s*var\(--evcc-card-frame-border-width,\s*var\(--ha-card-border-width,\s*1px\)\)/,
+    "the border-width intermediate must be VA token -> HA theme -> 1px, in that order");
+  assert.match(ROOM,
+    /--frame-shadow:\s*var\(--evcc-card-frame-shadow,\s*var\(--ha-card-box-shadow,\s*none\)\)/,
+    "the shadow intermediate must be VA token -> HA theme -> none, in that order");
+});
+
+test("[CFR-10] all three cards take the HA theme value as the MIDDLE fallback", () => {
+  // THE RED INPUT: fixing only the room card. It is the one with the interesting cycle,
+  // so it is the one that gets the attention — and the other two would keep ignoring the
+  // reporter's theme while the headline said the problem was solved. Same shape as
+  // [CFR-3]/[CFR-4], which exist because a three-copy replica cannot be checked by
+  // naming one copy.
+  for (const [name, src] of FRAMES) {
+    assert.match(src, /var\(--evcc-card-frame-border-width,\s*var\(--ha-card-border-width,/,
+      `${name}: the border width must fall back to an HA theme's --ha-card-border-width`);
+    assert.match(src, /var\(--evcc-card-frame-shadow,\s*var\(--ha-card-box-shadow,/,
+      `${name}: the shadow must fall back to an HA theme's --ha-card-box-shadow`);
+  }
 });

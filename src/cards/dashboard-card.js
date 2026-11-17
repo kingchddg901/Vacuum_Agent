@@ -1347,7 +1347,10 @@ const CARD_CSS = `
   }
   /* REPLICA RNA0TM68 -- the card FRAME. Twins: src/room-card.js (as --ha-card-*) and
      src/cards/profile-card.js (.evcc-pcard). See src/theme-tokens/cards.js. */
-  .card { background: var(--surface); border: var(--evcc-card-frame-border-width, 1px) solid var(--border); border-radius: var(--radius); box-shadow: var(--evcc-card-frame-shadow, none); overflow: hidden; max-width: 480px; }
+  /* ISSUE #83 second pass -- the HA name is the MIDDLE fallback: VA token, then whatever
+     an HA theme set, then our literal. This card frames with a plain div and never
+     declares --ha-card-*, so unlike the room card there is no cycle to route around. */
+  .card { background: var(--surface); border: var(--evcc-card-frame-border-width, var(--ha-card-border-width, 1px)) solid var(--border); border-radius: var(--radius); box-shadow: var(--evcc-card-frame-shadow, var(--ha-card-box-shadow, none)); overflow: hidden; max-width: 480px; }
 
   .header { display: flex; align-items: baseline; gap: 10px; padding: var(--evcc-card-header-padding, var(--evcc-card-padding, 14px 16px 10px)); flex-wrap: wrap; }
   .header .va-lang { margin-inline-start: auto; align-self: center; }
