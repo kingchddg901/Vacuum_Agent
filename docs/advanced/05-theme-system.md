@@ -158,6 +158,26 @@ Home Assistant theme variables are a separate system and never appear here — s
 [Styling the cards from a Home Assistant theme](../user-guide/20-dashboard-and-room-cards.md#styling-the-cards-from-a-home-assistant-theme)
 for the variables HA *can* reach.
 
+### Editing a shadow
+
+A shadow control is a **list of layers**, because that is what a CSS shadow usually is — a
+soft blur with a crisp 1px ring sitting on top of it is two layers, not one. Each layer
+gives you its four lengths as named fields (**X**, **Y**, **Blur**, **Spread**), its colour,
+and an **Inset** box for drawing the shadow inside the edge rather than outside.
+
+- **Add layer** appends one. **Remove layer** takes one away; removing the last one sets
+  the shadow to *none*, which is different from clearing the token — clearing it (the
+  **Reset** button) lets the shadow be inherited again.
+- **Order matters.** An earlier layer paints *over* a later one, so the two arrows are a
+  real control, not a tidy-up.
+- **Blur and Spread are not the same thing.** `Blur 0 / Spread 1px` is a crisp 1px ring;
+  `Blur 1px / Spread 0` is a soft smudge. This is the distinction worth knowing, and it is
+  why the fields are separate.
+
+If a shadow was written as something the fields cannot represent — a `var()` pointing at
+another token, or a `calc()` in one of the lengths — you get the plain text box instead and
+your value is left exactly as you wrote it.
+
 ### Theming one card differently from the others
 
 **Dashboard Cards** holds the controls for the three cards you can add to a dashboard, and

@@ -1042,6 +1042,100 @@ export const themeStyles = `
     width: 100%;
   }
 
+  /* BOX-SHADOW AS A LAYER LIST. A shadow is four lengths, a colour and a keyword, and
+     usually several of those stacked -- measured, 5 of the 8 values any saved theme on a
+     real install carries are stacks. So the control is a list of layers rather than one
+     row of fields, and it has to survive a 3-layer value at 390px, which is why the
+     parts WRAP rather than scroll. Logical properties throughout: this pane is rendered
+     in ar/he too. */
+  .token-control-row--shadow {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .token-shadow-layers {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* Each layer reads as its own object, because reordering them is meaningful: an
+     earlier layer paints OVER a later one. */
+  .token-shadow-layer {
+    border: 1px solid var(--evcc-border-subtle);
+    border-radius: var(--evcc-radius-inner, 8px);
+    padding: 6px 8px;
+    background: var(--evcc-surface-subtle);
+  }
+
+  .token-shadow-layer-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .token-shadow-layer-name {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--evcc-text-muted);
+  }
+
+  .token-shadow-layer-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-inline-start: auto;
+  }
+
+  .token-shadow-parts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  /* The four length slots are narrow and labelled, which is the entire point: a bare
+     0 0 0 1px is unreadable as one string and obvious as four named fields.
+     (No backticks in here -- this block is a JS template literal, and check-styles
+     has a dedicated rule for it because it keeps happening.) */
+  .token-shadow-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 60px;
+  }
+
+  .token-shadow-field-label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--evcc-text-muted);
+  }
+
+  /* The colour keeps its CSS text because every real value carries alpha -- see the note
+     at _renderThemeShadowTokenRow. It needs the room that rgba(...) actually takes. */
+  .token-shadow-field--color {
+    width: 100%;
+    min-width: 150px;
+    flex: 1 1 150px;
+  }
+
+  .token-shadow-field--inset {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+    gap: 6px;
+  }
+
+  .token-shadow-btn,
+  .token-shadow-add {
+    cursor: pointer;
+  }
+
   /* Font Family preset chips — each previews ITSELF via the custom property
      the renderer sets inline (the sanctioned data->CSS escape hatch). The
      text input below them stays the free-form escape hatch. */

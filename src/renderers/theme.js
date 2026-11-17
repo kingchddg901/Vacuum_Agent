@@ -16,6 +16,7 @@ import {
 } from "../theme-tokens/index.js";
 import { floorTypeNames, floorTypeDisplayName } from "../theme-tokens/floor-scope.js";
 import { flattenThemeBuckets } from "../theme-tokens/flatten.js";
+import { parseShadow } from "../theme-tokens/shadow-value.js";
 import { FONT_STACK_PRESETS, runtimeFontPresets } from "../styles/fonts.js";
 import { MARBLE_PRESETS } from "../theme-tokens/floor-presets.js";
 import { FACETS, orderTags, facetOf, SUGGESTED_VIBE_TAGS } from "../theme-tags/index.mjs";
@@ -187,6 +188,14 @@ function defaultScalarUnitForToken(token) {
  * token — and `lengths` exists as a type precisely so this can be said accurately
  * without claiming it about the gradients and the easing that also use a text box.
  */
+/** The four length slots of one shadow layer, in CSS order, with their label keys. */
+const SHADOW_LENGTH_PARTS = [
+  ["x", "theme.shadow_offset_x"],
+  ["y", "theme.shadow_offset_y"],
+  ["blur", "theme.shadow_blur"],
+  ["spread", "theme.shadow_spread"],
+];
+
 function placeholderKeyForToken(token) {
   if (token.type === "lengths") return "theme.token_placeholder_lengths";
   if (token.type === "shadow") return "theme.token_placeholder_shadow";
@@ -997,6 +1006,18 @@ export function applyThemeRenderers(proto) {
     const isDraft = source === "draft";
     const safeValue = value || "";
 
+    // A box-shadow is four lengths, a colour and an optional keyword, in ONE text box --
+    // and usually several of those stacked. parseShadow decides whether this particular
+    // value can be taken apart; if it cannot (a var() reference, a calc() length, a
+    // colour the control could not round-trip) we fall through to the text box rather
+    // than rewrite something deliberate. See src/theme-tokens/shadow-value.js.
+    if (token.type === "shadow") {
+      const parsedShadow = parseShadow(safeValue);
+      if (parsedShadow.ok) {
+        return this._renderThemeShadowTokenRow(token, safeValue, isDraft, parsedShadow);
+      }
+    }
+
     if (token.type === "color") {
       if (_parseColorMix(safeValue)) {
         return this._renderThemeColorMixTokenRow(token, safeValue, isDraft);
@@ -1327,6 +1348,142 @@ ${fontPresets}
             placeholder="${this.escapeHtml(this.t(placeholderKeyForToken(token)))}"
             data-theme-token="${this.escapeHtml(token.key)}"
           />
+        </div>
+      </div>
+    `;
+  };
+
+  /**
+   * ONE box-shadow TOKEN, AS A LAYER LIST.
+   *
+   * WHY A LIST AND NOT FIVE FIELDS. Measured against the themes actually saved on a real
+   * install: of the 8 shadow values any stored theme carries, 3 are single-layer, 4 are
+   * two-layer and 1 is three-layer. A five-field control would have served 37% of them
+   * and sent the rest back to a text box. The stacks earn their keep too -- a spread with
+   * no blur is the 1px-ring idiom, and it appears in 4 of the 8 -- so the ring and the
+   * blur it sits under are two layers by nature, not a quirk.
+   *
+   * THE COLOUR IS STILL TEXT, deliberately and not for lack of noticing. Every real
+   * value's colour carries alpha, so a bare swatch would drop it; the control that does
+   * colour-plus-alpha properly is the ~100-line block that serves all 325 colour tokens,
+   * and the two ways to reuse it here are to extract it (refactoring the busiest control
+   * in the editor) or to copy it per layer (a replica of exactly the kind this repo keeps
+   * paying for). Neither is worth it to reach the one part of a box-shadow that reads
+   * fine as text: `rgba(201, 84, 30, 0.38)` says what it is, while `0 0 0 1px` does not.
+   * The four unlabelled numbers were the actual complaint.
+   *
+   * ORDER IS VISIBLE, so the reorder buttons are not decoration: in CSS an earlier layer
+   * paints OVER a later one, which is why a ring listed after a blur reads differently
+   * from the same two swapped.
+   *
+   * NO data-theme-token ON ANY PART. That attribute means "my value IS the token's
+   * value", and the existing input handler would take one length as the whole shadow.
+   * Parts carry data-shadow-* and the binding recomposes the token from all of them.
+   */
+  proto._renderThemeShadowTokenRow = function (token, value, isDraft, parsed) {
+    const key = this.escapeHtml(token.key);
+    const layers = parsed.layers;
+
+    const lengthField = (i, part, labelKey, val) => `
+            <label class="token-shadow-field">
+              <span class="token-shadow-field-label">${this.t(labelKey)}</span>
+              <input
+                type="text"
+                class="token-input token-shadow-part"
+                value="${this.escapeHtml(val ?? "")}"
+                placeholder="0"
+                data-shadow-token="${key}"
+                data-shadow-index="${i}"
+                data-shadow-part="${part}"
+              />
+            </label>`;
+
+    const iconBtn = (attr, i, labelKey, glyph) => `
+              <button
+                type="button"
+                class="evcc-chip evcc-chip--iconable token-shadow-btn"
+                data-shadow-token="${key}"
+                data-shadow-index="${i}"
+                ${attr}
+                title="${this.escapeHtml(this.t(labelKey))}"
+                aria-label="${this.escapeHtml(this.t(labelKey))}"
+              ><span aria-hidden="true">${glyph}</span></button>`;
+
+    const layerBlock = (L, i) => `
+          <div class="token-shadow-layer" data-shadow-layer="${i}">
+            <div class="token-shadow-layer-head">
+              <span class="token-shadow-layer-name">${this.t("theme.shadow_layer_label", { n: i + 1 })}</span>
+              <div class="token-shadow-layer-actions">
+                ${i > 0 ? iconBtn('data-shadow-move="up"', i, "theme.shadow_move_up", "&#8593;") : ""}
+                ${i < layers.length - 1 ? iconBtn('data-shadow-move="down"', i, "theme.shadow_move_down", "&#8595;") : ""}
+                ${iconBtn("data-shadow-remove", i, "theme.shadow_remove_layer", "&#215;")}
+              </div>
+            </div>
+            <div class="token-shadow-parts">
+              ${SHADOW_LENGTH_PARTS.map(([part, labelKey]) => lengthField(i, part, labelKey, L[part])).join("")}
+              <label class="token-shadow-field token-shadow-field--color">
+                <span class="token-shadow-field-label">${this.t("theme.shadow_color")}</span>
+                <input
+                  type="text"
+                  class="token-input token-shadow-part"
+                  value="${this.escapeHtml(L.color ?? "")}"
+                  placeholder="rgba(0, 0, 0, 0.2)"
+                  data-shadow-token="${key}"
+                  data-shadow-index="${i}"
+                  data-shadow-part="color"
+                />
+              </label>
+              <label class="token-shadow-field token-shadow-field--inset">
+                <input
+                  type="checkbox"
+                  data-shadow-token="${key}"
+                  data-shadow-index="${i}"
+                  data-shadow-part="inset"
+                  ${L.inset ? "checked" : ""}
+                />
+                <span class="token-shadow-field-label">${this.t("theme.shadow_inset")}</span>
+              </label>
+            </div>
+          </div>`;
+
+    return `
+      <div class="evcc-token-row evcc-token-row--shadow ${isDraft ? "is-draft" : ""}">
+        <div class="token-head">
+          <div class="token-label">
+            ${this.tVocab("theme_token", token.key, token.label)}
+            <span class="evcc-chip">${this.tVocab("token_type", token.type, token.type)}</span>
+            ${isDraft ? `<span class="evcc-chip evcc-chip--custom">${this.t("theme.token_draft")}</span>` : ""}
+          </div>
+
+          <div class="token-head-actions">
+            ${isDraft ? `
+              <button
+                class="evcc-chip evcc-chip--iconable"
+                data-theme-reset="${key}"
+                title="${this.escapeHtml(this.t("common.reset"))}"
+                aria-label="${this.escapeHtml(this.t("common.reset"))}"
+              >
+                <span class="evcc-chip-icon">${_iconUndo()}</span>
+                <span class="evcc-chip-label">${this.t("common.reset")}</span>
+              </button>
+            ` : ""}
+          </div>
+        </div>
+
+        <div class="token-control-row token-control-row--shadow">
+          <div class="token-shadow-layers">
+            ${layers.map(layerBlock).join("")}
+          </div>
+          <button
+            type="button"
+            class="evcc-chip evcc-chip--iconable token-shadow-add"
+            data-shadow-token="${key}"
+            data-shadow-add
+            title="${this.escapeHtml(this.t("theme.shadow_add_layer"))}"
+          >
+            <span aria-hidden="true">+</span>
+            <span class="evcc-chip-label">${this.t("theme.shadow_add_layer")}</span>
+          </button>
         </div>
       </div>
     `;

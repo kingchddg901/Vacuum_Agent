@@ -40,6 +40,7 @@ import { applyThemeToCard } from "../src/styles/apply-theme.js";
 import { registerLocale, applyDir } from "../src/i18n/index.js";
 import { ensureFontFacesInDocument } from "../src/styles/fonts.js";
 import { en } from "../src/i18n/en.js";
+import { formatShadow, parseShadow } from "../src/theme-tokens/shadow-value.js";
 import { flattenLocale } from "../src/i18n/flatten.js";
 import { makeStubState, makeNullObject } from "./fixtures/stub-state.js";
 import { makePseudoLong } from "./lib/pseudo-locale.mjs";
@@ -1055,6 +1056,12 @@ window.__evcc = {
   flattenLocale,  // (Node-side specs can't import en.js/flatten.js: Playwright's loader
                   //  treats a typeless .js as CJS and won't reparse the ESM export)
   VacuumCardState, // exposed so tooling can drive real state (e.g. per-device theme)
+  // The box-shadow grammar, for the SAME reason as flattenLocale above: a Node-side spec
+  // cannot import it (typeless .js reads as CJS to Playwright's loader, so a named import
+  // throws), and a spec that re-implemented the join would be comparing the UI against a
+  // copy of the rule rather than the rule. [SHL-5] recomposes IN-PAGE with these.
+  formatShadow,
+  parseShadow,
   semanticTokens: SEMANTIC_COLOR_TOKENS,
   // Registry-derived floor materials, for [FLOOR-1]'s expectation side.
   floorTypes: floorTypeNames(),

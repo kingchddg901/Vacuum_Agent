@@ -2583,6 +2583,17 @@
     "search_themes_placeholder": "Search themes...",
     "search_toggle": "Search and filter",  // accessible name for the caret that collapses/expands the token search row; state is carried by aria-expanded, so this label stays constant in both directions
     "search_tokens_placeholder": "Search tokens...",
+    "shadow_add_layer": "Add layer",  // button under a box-shadow control: append another shadow layer. A stacked shadow is the norm rather than the exception - 5 of 8 real stored values are stacks
+    "shadow_blur": "Blur",  // box-shadow part: blur radius. Short - it labels a narrow number field beside three others
+    "shadow_color": "Colour",  // box-shadow part: the shadow's colour, held as CSS text (rgba/hex) because a layer's colour commonly carries alpha
+    "shadow_inset": "Inset",  // box-shadow part: draw the shadow inside the box rather than outside. A CSS keyword, rendered as a checkbox
+    "shadow_layer_label": "Layer {n}",  // heading for one shadow layer in a stack; {n} is 1-based
+    "shadow_move_down": "Move layer down",  // reorder: later layers paint UNDER earlier ones, so order is visible, not cosmetic
+    "shadow_move_up": "Move layer up",
+    "shadow_offset_x": "X",  // box-shadow part: horizontal offset. Single letter on purpose - it sits above a narrow field, next to Y
+    "shadow_offset_y": "Y",  // box-shadow part: vertical offset
+    "shadow_remove_layer": "Remove layer",  // removing the LAST layer writes `none` (an explicit no-shadow), not an empty value, which would inherit one instead
+    "shadow_spread": "Spread",  // box-shadow part: spread radius. A spread with no blur is the 1px-ring idiom, which 4 of the 8 real stored values use
     "tab_palette": "Palette",
     "tab_themes": "Themes",
     "tab_tokens": "Tokens",  // sub-tab name: the CSS design-token editor list. TRANSLATE it: it is a visible sub-tab chip and the collapsed-search section label, and "tokens" here is this project's jargon for a NAMED THEME VALUE — render that sense (a design/style token), not the authentication one. de/es/nl/pt keep "Tokens" as a loanword (accepted, section D); every other pack translates or declines it.

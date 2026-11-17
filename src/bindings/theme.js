@@ -67,6 +67,7 @@ import { applyThemeToCard } from "../styles/apply-theme.js";
 import { THEME_GROUPS, THEME_TOKEN_MAP, THEME_TOKEN_REGISTRY } from "../theme-tokens/index.js";
 import { sliceThemeByTypes, themeKeyCount, detectFloorScope, clampThemeScalars } from "../theme-tokens/floor-scope.js";
 import { scalarClampBounds, normaliseLengthList } from "../theme-tokens/helpers.js";
+import { parseShadow, formatShadow } from "../theme-tokens/shadow-value.js";
 import { MARBLE_PRESETS } from "../theme-tokens/floor-presets.js";
 
 /* =========================================================
@@ -226,6 +227,7 @@ export function applyThemeBindings(proto) {
     this._bindThemeGroupSearch();
     this._bindThemeTokenEdits();
     this._bindThemeAlphaEdits();
+    this._bindThemeShadowEdits();
     this._bindThemeColorMixEdits();
     this._bindThemeTokenResets();
     this._bindThemeGroupResets();
@@ -769,6 +771,121 @@ export function applyThemeBindings(proto) {
       }
 
       this.card._scheduleDeferredRender?.();
+    });
+  };
+
+  /* =========================================================
+     BOX-SHADOW LAYER EDITING
+     =========================================================
+     A shadow token is ONE stored string that the row renders as N layers of fields. Every
+     handler here therefore works the same way: read the value that is stored, parse it,
+     change one thing, format it back, write the whole string. The DOM is a view and is
+     never the source -- composing the token by scraping the inputs would make a mis-render
+     silently rewrite the value.
+
+     WHY NO data-theme-token ON THE PARTS. That attribute means "my value IS the token's
+     value", so the generic input handler above would take a single length as the entire
+     shadow. The parts carry data-shadow-* instead, and nothing else reads those.
+
+     RE-RENDER ONLY WHERE THE SHAPE CHANGED. Add, remove and reorder change the number or
+     order of rows, so they re-render. A keystroke in a field must NOT: re-rendering mid-
+     edit replaces the input the caret is in, and the caret goes with it.
+     ========================================================= */
+
+  /** Current stored value for a shadow token, as the editor has resolved it. */
+  proto._shadowTokenValue = function (tokenKey) {
+    const { tokens } = this.card._state.resolvedTheme();
+    return tokens?.[tokenKey] ?? "";
+  };
+
+  /**
+   * Parse, hand the layers to `mutate`, write the result back.
+   * A refusal from parseShadow means the value is a var()/calc()/unknown form the row
+   * never offered controls for, so there is nothing to mutate and we leave it alone.
+   */
+  proto._editShadowToken = async function (tokenKey, mutate, { rerender = false } = {}) {
+    const tokenDef = THEME_TOKEN_MAP[tokenKey];
+    if (!tokenDef) return;
+
+    const parsed = parseShadow(this._shadowTokenValue(tokenKey));
+    if (!parsed.ok) return;
+
+    const layers = parsed.layers.map((l) => ({ ...l }));
+    const next = mutate(layers);
+    if (next === false) return;                 // the mutation declined; nothing to write
+
+    const value = formatShadow(layers);
+    const payload = this._buildDraftPayload(tokenKey, value, tokenDef);
+    if (!Object.keys(payload).length) return;
+
+    await this.card._actions.updateWorkingDraft(this.card._config.vacuum_entity_id, payload);
+    this.card._state.applyThemeDraftPatch(payload);
+    applyThemeToCard(this.card);
+    if (rerender) this.card._scheduleRender();
+  };
+
+  proto._bindThemeShadowEdits = function () {
+    const idxOf = (el) => Number.parseInt(el.dataset.shadowIndex ?? "", 10);
+
+    // A FIELD EDIT. On `change` (blur/Enter) rather than `input`: these four lengths are
+    // text fields, and writing on every keystroke would persist "1" on the way to "12px"
+    // and fire a backend call per character.
+    this.card._onAll("[data-shadow-part]", "change", async (e) => {
+      const el = e.currentTarget;
+      const key = el.dataset.shadowToken;
+      const part = el.dataset.shadowPart;
+      const i = idxOf(el);
+      if (!key || !part || !Number.isInteger(i)) return;
+
+      const raw = part === "inset" ? !!el.checked : String(el.value ?? "").trim();
+      await this._editShadowToken(key, (layers) => {
+        if (!layers[i]) return false;
+        if (part === "inset") layers[i].inset = raw;
+        else if (part === "color") layers[i].color = raw;
+        else layers[i][part] = normaliseLengthList(raw);   // a bare 8 means 8px here too
+        return true;
+      });
+    });
+
+    // ADD. A new layer is deliberately NOT a copy of the last one: duplicating a 1px ring
+    // paints a second identical ring and looks like nothing happened.
+    this.card._onAll("[data-shadow-add]", "click", async (e) => {
+      const key = e.currentTarget.dataset.shadowToken;
+      if (!key) return;
+      await this._editShadowToken(key, (layers) => {
+        layers.push({ inset: false, x: "0", y: "2px", blur: "6px", spread: "", color: "rgba(0, 0, 0, 0.3)" });
+        return true;
+      }, { rerender: true });
+    });
+
+    // REMOVE. Taking the last layer out writes `none`, not "" -- formatShadow owns that
+    // rule, and it matters: an empty token would inherit the shadow the user just deleted.
+    this.card._onAll("[data-shadow-remove]", "click", async (e) => {
+      const el = e.currentTarget;
+      const key = el.dataset.shadowToken;
+      const i = idxOf(el);
+      if (!key || !Number.isInteger(i)) return;
+      await this._editShadowToken(key, (layers) => {
+        if (!layers[i]) return false;
+        layers.splice(i, 1);
+        return true;
+      }, { rerender: true });
+    });
+
+    // REORDER. Not cosmetic: in CSS an earlier layer paints OVER a later one, so a ring
+    // listed before its blur reads differently from the same two swapped.
+    this.card._onAll("[data-shadow-move]", "click", async (e) => {
+      const el = e.currentTarget;
+      const key = el.dataset.shadowToken;
+      const i = idxOf(el);
+      const dir = el.dataset.shadowMove === "up" ? -1 : 1;
+      if (!key || !Number.isInteger(i)) return;
+      await this._editShadowToken(key, (layers) => {
+        const j = i + dir;
+        if (j < 0 || j >= layers.length) return false;
+        [layers[i], layers[j]] = [layers[j], layers[i]];
+        return true;
+      }, { rerender: true });
     });
   };
 
