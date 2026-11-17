@@ -8,6 +8,36 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [2.7.1] - 2026-11-16
+
+### Added
+
+- **The three cards you can add to a dashboard are now themeable from the theme editor.** A new **Dashboard Cards** group carries eight controls. Four reach all three cards — the frame's border width, the frame's shadow, the primary action's glow, and **Text Scale**. The other four are the spacing controls and reach the cards that have the thing they name: **Header Padding** and **Field Gap** apply to the room card and the Dashboard Mode card, while **Row Padding** and **Section Padding** apply to the Dashboard Mode card, the only one with room rows and sections. Before this, the cards' *colours* were fully tokenized and their *geometry* was not: a border width and a box shadow sat hardcoded in the card's own CSS, where no theme could reach them ([#83](https://github.com/kingchddg901/Vacuum_Agent/issues/83), reported by @RkcCorian).
+- **The four spacing controls follow the panel unless you tell them otherwise.** Each is read as a chain: the card's own token, then the panel's equivalent, then the card's literal. Theming the panel's spacing gives you cards that follow for free, and setting a card token is how you say "this card, differently" — without the panel's room tiles moving with it. The other four controls have no panel equivalent to inherit from and are simply the card's own.
+- **The group previews a real card, not a drawing of one.** The Dashboard Cards preview mounts a live **room card** and tracks every control as you move it. The controls that only apply to the Dashboard Mode card are not visible in that preview.
+- **One text scale instead of sixteen font sizes.** The cards carry sixteen distinct sizes, and a per-item control for each would have been sixteen sliders to keep in agreement. **Text Scale** (0.5–2) multiplies every one of them, so the ratios between the header, a room name, a chip and a hint hold at any size.
+- **A card config option to hide the companion animal completely.** 2.7.0 put the companion's control row behind a caret, and a collapsed row still takes a line. **Show companion animal** — a tickbox in the Dashboard Mode card's editor, on by default, or `show_companion: false` in YAML — removes the row *and* the animal. It is card-only: the panel keeps its own companion and its own saved choice either way ([#82](https://github.com/kingchddg901/Vacuum_Agent/issues/82), reported by @RkcCorian).
+- **`--evcc-space-xs` is now a control.** It has been declared in CSS since the spacing family was completed and painted correctly everywhere while offering no way to change it, which is indistinguishable from a token that does not exist.
+
+### Changed
+
+- **Chips are slightly larger, with or without a theme.** On the room card their horizontal padding goes from 12px to 14px; on the Dashboard Mode card from `4px 12px` to `5px 14px`. Both also gain a 24px minimum height, so a chip with a short label no longer sits shorter than its neighbours. The Profile card has no chips and is unaffected.
+- **The cards now read tokens they previously ignored,** so a Vacuum Agent theme you had already customised can change them: the strong-text colour for titles, the active-chip colours used by the room count badge, the inner and chip radii, the `--evcc-space-*` family, the section gap, the card shadow, the press scale and the transition duration. The new **Customised** chip in the theme editor lists exactly which tokens you have set.
+
+### Fixed
+
+- **The theme editor's "Modified" filter emptied the moment you pressed Save.** It tested for *unsaved* edits, so once a change was saved its provenance was no longer "draft" and the filter stopped showing it — while every group header fell to `0 / N` directly above the rows you had just customised. There are now two controls that say what they do: a **Customised** chip for every token you have set, saved or not, and an **Unsaved only** checkbox for the working draft ([#83](https://github.com/kingchddg901/Vacuum_Agent/issues/83)).
+- **That "Unsaved only" checkbox had never rendered ticked.** It was written with a framework-specific attribute binding that these renderers do not interpret, so ticking it filtered the list while the box sprang visually back to unticked — which on its own looks like a broken filter.
+- **The theme editor now says that it is not showing Home Assistant theme variables.** The two are separate systems, and nothing in the editor said so, so a theme author changing an HA variable and watching this list for it had no way to know the change could never appear there. See [Styling the cards from a Home Assistant theme](docs/user-guide/20-dashboard-and-room-cards.md#styling-the-cards-from-a-home-assistant-theme) for the variables HA *can* reach.
+- **The token editor's free-text boxes said only "Default".** A box labelled "Section Padding · Default" stated that leaving it empty uses the default and nothing about what could go in it — not the format, not the units, and not that an empty box *inherits* rather than zeroes. The padding and spacing boxes now show a worked example, and a bare number typed into one becomes `px` when you leave the field.
+- **A room card's corner radius could not be set from a Home Assistant theme.** `ha-card-border-radius` reached nothing on that one card, because the card declared it in terms of a property declared on the same element — a cycle, which CSS discards whole. It looked correct throughout, since the fallback and the intended value happened to agree.
+- **Four small things you can see.** The carpet notice's corner radius was a hardcoded 6px and now follows the inner-radius token (8px by default); the step list's grey was the card's muted tone instead of the panel's secondary (5.74:1 against 8.07:1 contrast); buttons and checkboxes animated at 120ms where everything else uses 150ms; and the range slider now takes your accent colour. A `<select>`'s dropdown list also gained styling of its own, which on most platforms the operating system draws anyway.
+
+### Internal
+
+- Six new test files, covering the card frame as a three-copy replica set, the live card preview, the spacing chain's three rungs, the `show_companion` gates, the token-editor inputs, and a gate that every token group has a preview or states why not. The repo's own gates grew too: the frontend CI job named three filters and so ran three of its seventeen harness specs, and now runs all of them — which is how a smoke test that had been red for eight commits was found.
+- The theme editor gained a `lengths` token type — a 1–4 part CSS length list — split out of the generic text type so a padding box can say what it wants without telling a gradient the same thing.
+
 ## [2.7.0] - 2026-11-15
 
 **Your own floors.** A material you author — or that Material Author exports — can be dropped into your config directory and chosen per room, then turned, placed and sized in real metres. Plus cards that can wear the Vacuum Agent theme instead of Home Assistant's, and an install about two thirds smaller to download.

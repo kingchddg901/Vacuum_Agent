@@ -58,10 +58,12 @@
  * mode reads as coverage while being none. It lives in `real-frame.spec.mjs`,
  * where `mountRealCard` builds main.js's real frame and the catch genuinely runs.
  *
- * NOT IN CI. `card-visual.yml` runs only `visual device-theme
- * gallery-completeness`, so this file runs when someone runs it. The unit-level
- * gate for the same defect is `src/renderers/theme-preview-room-card-state.test.mjs`,
- * which `node-tests.yml` does run.
+ * IN CI SINCE 2026-11-16, and this paragraph used to say the opposite. `card-visual.yml`
+ * named three filters (`visual device-theme gallery-completeness`) and so ran three of
+ * the seventeen spec files; this one was not among them, which is why it could sit red
+ * for eight commits. That step now runs the whole suite, so this file is gated on every
+ * push touching src/ or harness/. The unit-level gate for the same defect is
+ * `src/renderers/theme-preview-room-card-state.test.mjs`, which `node-tests.yml` runs too.
  */
 import { test, expect } from "@playwright/test";
 import { mountHarness, renderTab, VIEW_ORDER } from "../lib/mount-page.mjs";

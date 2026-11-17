@@ -44,16 +44,24 @@ jobs:
       # [FLOOR-1] every registry floor material actually rendering -- had never once
       # executed on a runner: a correct gate with no caller, which is the same shape
       # as the dead --evcc-sem-info claimant the spec's own allowlist warns about.
-      # EVERY spec, not a named subset. This step used to list five of the nineteen
-      # spec files, and the other fourteen -- smoke, cvd, the four i18n suites,
-      # intake, real-frame, tab-gating, shape-marks and the rest -- never ran in CI
-      # at all. docs/testing/frontend/render-harness.md says they run "everywhere",
-      # which means NOT PLATFORM-GATED rather than "CI runs them", and that is an
-      # easy sentence to read the other way.
+      # EVERY spec, not a named subset. This step used to name three filters --
+      # `visual device-theme gallery-completeness` -- which matched exactly THREE of
+      # the SEVENTEEN spec files then in harness/tests. The other fourteen (smoke,
+      # cvd, the four i18n suites, intake, real-frame, tab-gating, shape-marks and
+      # the rest) never ran in CI at all. docs/testing/frontend/render-harness.md
+      # says they run "everywhere", which means NOT PLATFORM-GATED rather than "CI
+      # runs them", and that is an easy sentence to read the other way.
       # It cost a real miss: smoke.spec.mjs went red at 918c6d06 when the Dashboard
-      # Cards preview started returning "" without a hass, and sat red for three
+      # Cards preview started returning "" without a hass, and sat red for EIGHT
       # commits until someone ran it by hand. Measured 2026-11-16: the full suite is
-      # 332 passed / 32 skipped in 41s locally, so the subset bought nothing.
+      # 333 passed / 32 skipped in ~44s locally, so the subset bought nothing.
+      #
+      # RE-DERIVE THESE FIGURES, never carry them: the filter count is what the old
+      # `run:` line named, the spec count is `git ls-tree --name-only <tag>
+      # harness/tests/ | grep -c spec`, and the red span is `git log --oneline
+      # 918c6d06..0ac7c1ee | wc -l`. This comment first said "five of the nineteen"
+      # and "three commits" -- both wrong, and both had been copied into a draft
+      # release note before anything checked them.
       - name: Frontend harness suite (all specs, incl. visual baselines)
         run: npx playwright test -c harness/playwright.config.mjs
 
