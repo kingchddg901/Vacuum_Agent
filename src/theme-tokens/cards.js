@@ -83,9 +83,13 @@ export const DASHBOARD_CARD_TOKENS = [
     { min: 0, max: 8, step: 0.5 },
   ),
 
-  // type "shadow" renders as a free-text input: there is no composite
-  // shadow editor anywhere in the registry. Honest, and it accepts the
-  // full CSS value including a comma-separated stack.
+  // type "shadow" renders the PER-LAYER editor (_renderThemeShadowTokenRow) whenever
+  // parseShadow can take the value apart -- X, Y, Blur, Spread, a colour and Inset per
+  // layer, with add, remove and reorder. It falls back to the free-text box for a value
+  // the fields cannot round-trip, such as a var() pointing at another token or a calc()
+  // in one of the lengths, and leaves that text exactly as written.
+  // (This comment said no composite editor existed anywhere in the registry. That was
+  // true when the token was added and stopped being true later in the SAME release.)
   cardToken.shadow(
     "--evcc-card-frame-shadow",
     "Frame Shadow",

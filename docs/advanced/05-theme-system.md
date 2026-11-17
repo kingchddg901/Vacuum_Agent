@@ -1,6 +1,6 @@
 # 05 — Theme System
 
-The theme system gives you per-card visual customization through CSS custom properties called design tokens. This is separate from Home Assistant's global theme system — your card theme has no effect on the rest of your dashboard, and HA global themes do not override the card's own token values.
+The theme system gives you per-card visual customization through CSS custom properties called design tokens. This is separate from Home Assistant's global theme system — your card theme has no effect on the rest of your dashboard, and a value you set here is not overridden by an HA global theme. The reverse is not absolute: where you have set nothing, several `ha-card-*` variables from your HA theme do reach the card frame (see [Styling the cards from a Home Assistant theme](../user-guide/20-dashboard-and-room-cards.md#styling-the-cards-from-a-home-assistant-theme)).
 
 > **New to themes?** The [Theme system user guide](../user-guide/17-theme-system.md) is the friendly tour — picking, per-device, import/export, filters. This page is the token-by-token reference; to *build* a theme, see [Authoring a theme](../contributing/theme-authoring.md).
 
@@ -186,11 +186,17 @@ moving one there moves all three. Each card also has its own subgroup — **Room
 
 They read as a chain, most specific first:
 
-1. the card's own token (its subgroup),
-2. the shared **Dashboard Cards** token,
-3. the panel's equivalent, or the matching `ha-card-*` variable from your Home Assistant
+1. `theme_vars` on that one card's own YAML config — added in 2.7.1, and above everything
+   else because it is set on a single card rather than on every card a theme touches,
+2. the card's own token (its subgroup),
+3. the shared **Dashboard Cards** token,
+4. the panel's equivalent, or the matching `ha-card-*` variable from your Home Assistant
    theme for the frame controls,
-4. the card's built-in default.
+5. the card's built-in default.
+
+Rungs 2-5 are what the theme editor sets, and are what you get without touching YAML. See
+[Styling one card on its own](../user-guide/20-dashboard-and-room-cards.md#styling-one-card-on-its-own--theme_vars)
+for rung 1.
 
 So setting nothing leaves every card as it was, setting a **Dashboard Cards** value moves
 all three together, and setting a subgroup value peels one card away from the rest.

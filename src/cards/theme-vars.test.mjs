@@ -33,6 +33,9 @@ import { fileURLToPath } from "node:url";
 import {
   CARD_THEME_VARS_KEY, normaliseThemeVarName, readCardThemeVars, applyCardThemeVars,
 } from "./_shared.js";
+// The REAL producer of a drop-in material's token names. Imported rather than restated:
+// a fixture that encodes my idea of the shape would agree with itself and prove nothing.
+import { tokenFor } from "../textures/user-materials.js";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const read = (...p) => readFileSync(join(REPO, ...p), "utf8");
@@ -112,6 +115,21 @@ test("[TVR-4] only --evcc-* names are accepted, dashed or not", () => {
                       "evcc-map-background", "--evcc-animal-cat-eye-good"]) {
     assert.ok(normaliseThemeVarName(good)?.startsWith("--evcc-"),
       `${good} should be accepted`);
+  }
+
+  // A DROP-IN MATERIAL'S OWN CONTROLS, built by the REAL producer rather than by my idea
+  // of its shape. The backend accepts a material id matching ^[a-z0-9][a-z0-9_-]{0,31}$
+  // (user_materials.py ID_RE), so an id may contain an UNDERSCORE — and the first version
+  // of the name check did not allow one, which made every control of such a pack
+  // unreachable from theme_vars while the user guide promised the opposite. Silent, and
+  // only for users who authored their own material. Found by the pre-release audit.
+  for (const id of ["oak_wide", "carpet_low", "plain", "a1_b2-c3"]) {
+    for (const kind of ["color", "opacity"]) {
+      const minted = tokenFor(id, "base", kind);
+      assert.equal(normaliseThemeVarName(minted), minted,
+        `a drop-in material's minted token ${minted} must be settable from theme_vars — ` +
+        "the editor shows it, so the documented promise covers it");
+    }
   }
   for (const bad of ["color", "--color", "--ha-card-background", "background",
                      "--evcc-", "evcc_card_frame", "--evcc-Card-Frame", "", null, undefined]) {

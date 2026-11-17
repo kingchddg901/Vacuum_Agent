@@ -56,7 +56,7 @@ Cumulative cycle counter, zone-aware charge-rate tracking (low / high / mid-job)
 
 ## Make it yours — themes & languages
 
-A built-in **theme editor** for the panel card, with three layers: ready-made presets, a high-level palette editor, and full token-level control with live previews (including every floor material). Export/import via clipboard or file to share themes or migrate between installs. There's a validated **colorblind-safe** theme, and a faulted run carries a warning triangle on its errors badge so it can be spotted without relying on colour. The language menu also holds a per-user **typeface picker** — **OpenDyslexic ships built in**, and you can drop your own `.woff2` fonts into `config/eufy_vacuum/fonts/` and they appear in the picker after a restart.
+A built-in **theme editor** for the panel and for the three cards you add to a dashboard, with three layers: ready-made presets, a high-level palette editor, and full token-level control with live previews (including every floor material). Export/import via clipboard or file to share themes or migrate between installs. There's a validated **colorblind-safe** theme, and a faulted run carries a warning triangle on its errors badge so it can be spotted without relying on colour. The language menu also holds a per-user **typeface picker** — **OpenDyslexic ships built in**, and you can drop your own `.woff2` fonts into `config/eufy_vacuum/fonts/` and they appear in the picker after a restart.
 
 ![Themes — presets](docs/screenshots/themes-presets.png)
 

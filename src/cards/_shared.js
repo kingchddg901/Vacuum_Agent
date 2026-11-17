@@ -566,8 +566,16 @@ export const CARD_THEME_VARS_KEY = "theme_vars";
 
 /* A token name, with or without the leading dashes. Deliberately a SHAPE check rather
    than a lookup against the registry: importing it would pull the whole token layer into
-   the cards bundle, and a shape check also accepts tokens added after this shipped. */
-const THEME_VAR_NAME = /^--evcc-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+   the cards bundle, and a shape check also accepts tokens added after this shipped.
+
+   UNDERSCORES ARE LEGAL INSIDE A SEGMENT, and leaving them out was a real hole. A drop-in
+   material pack mints its own editor controls as `--evcc-floor-<id>-<role>`
+   (textures/user-materials.js::tokenFor), and the backend accepts an id matching
+   ^[a-z0-9][a-z0-9_-]{0,31}$ (user_materials.py ID_RE) -- so a pack called `oak_wide`
+   has tokens no theme_vars entry could ever name. The user guide promises that every
+   token the editor exposes works here, and for those users it would have been false and
+   SILENT. Caught by the pre-release audit. */
+const THEME_VAR_NAME = /^--evcc-[a-z0-9_]+(?:-[a-z0-9_]+)*$/;
 
 /* A custom property holds an arbitrary token stream, so a value containing `;` or `}`
    cannot escape this element -- it only makes the declarations that var() it invalid at
